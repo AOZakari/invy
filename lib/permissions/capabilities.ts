@@ -48,7 +48,7 @@ export function canUseFeature(
  * Check if user is super-admin
  */
 export function isSuperAdmin(user: User | null): boolean {
-  return user?.role === 'superadmin' ?? false;
+  return user?.role === 'superadmin' || false;
 }
 
 /**
