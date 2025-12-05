@@ -6,8 +6,7 @@ interface DashboardOverviewProps {
 }
 
 export default async function DashboardOverview({ userId }: DashboardOverviewProps) {
-  // Placeholder - will work once auth is set up
-  const events = userId !== 'placeholder-user-id' ? await getEventsByUserId(userId) : [];
+  const events = await getEventsByUserId(userId);
 
   // Calculate totals
   let totalEvents = events.length;

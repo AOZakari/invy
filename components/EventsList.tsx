@@ -7,8 +7,7 @@ interface EventsListProps {
 }
 
 export default async function EventsList({ userId }: EventsListProps) {
-  // Placeholder - will work once auth is set up
-  const events = userId !== 'placeholder-user-id' ? await getEventsByUserId(userId) : [];
+  const events = await getEventsByUserId(userId);
 
   if (events.length === 0) {
     return (
@@ -31,7 +30,7 @@ export default async function EventsList({ userId }: EventsListProps) {
         {events.map(async (event) => {
           const stats = await getRsvpStatsForEvent(event.id);
           const isUpcoming = new Date(event.starts_at) > new Date();
-          const adminUrl = `/admin/${event.admin_secret}`;
+          const manageUrl = `/manage/${event.admin_secret}`;
 
           return (
             <div
@@ -89,7 +88,7 @@ export default async function EventsList({ userId }: EventsListProps) {
                   View Public Page
                 </Link>
                 <Link
-                  href={adminUrl}
+                  href={manageUrl}
                   className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded text-sm font-medium hover:opacity-90"
                 >
                   Manage Event

@@ -162,7 +162,6 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
 
 function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme }) {
   const [copied, setCopied] = useState(false);
-  const [icsUrl, setIcsUrl] = useState<string | null>(null);
 
   const isDark = theme === 'dark';
   const publicUrl = typeof window !== 'undefined' ? `${window.location.origin}/e/${eventSlug}` : '';
@@ -194,16 +193,22 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
   };
 
   const handleAddToCalendar = async () => {
-    // Fetch event data to generate ICS
     try {
       const response = await fetch(`/api/events/${eventSlug}`);
       if (!response.ok) return;
 
       const event = await response.json();
-      const icsContent = generateICS(event);
+      const { generateICS } = await import('@/lib/utils/ics');
+      const startDate = new Date(event.starts_at);
+      const icsContent = generateICS({
+        title: event.title,
+        description: event.description || undefined,
+        start: startDate,
+        location: event.location_text,
+        locationUrl: event.location_url || undefined,
+      });
       const blob = new Blob([icsContent], { type: 'text/calendar' });
       const url = URL.createObjectURL(blob);
-      setIcsUrl(url);
 
       const a = document.createElement('a');
       a.href = url;
@@ -218,69 +223,36 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
   };
 
   return (
-    <div className="text-center space-y-6 py-8">
-      <div className="text-6xl mb-4">🎉</div>
-      <h2 className="text-3xl font-bold">Thanks for RSVPing!</h2>
-      <p className="opacity-80">We've received your response.</p>
+    <div className="text-center space-y-4 py-8 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
+      <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">All set</p>
+      <h2 className="text-3xl font-bold">Thanks for RSVPing</h2>
+      <p className="opacity-80">We’ve logged your response. Grab whatever you need below.</p>
 
-      <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+      <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
         <button
           onClick={handleAddToCalendar}
-          className={`px-6 py-3 rounded-lg font-medium transition-opacity ${
+          className={`px-6 py-3 rounded-lg font-medium border ${
             isDark
-              ? 'bg-gray-800 text-gray-100 hover:bg-gray-700'
-              : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+              ? 'border-white text-white hover:bg-white hover:text-gray-900'
+              : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
           }`}
         >
-          📅 Add to Calendar
+          Add to calendar
         </button>
 
         <button
           onClick={handleShare}
-          className={`px-6 py-3 rounded-lg font-medium transition-opacity ${
+          className={`px-6 py-3 rounded-lg font-medium border ${
             isDark
-              ? 'bg-gray-800 text-gray-100 hover:bg-gray-700'
-              : 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+              ? 'border-white text-white hover:bg-white hover:text-gray-900'
+              : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
           }`}
         >
-          {copied ? '✓ Link Copied!' : '🔗 Share Event'}
+          {copied ? '✓ Link copied' : 'Share event'}
         </button>
       </div>
     </div>
   );
 }
 
-// Simple ICS generator (client-side)
-function generateICS(event: any): string {
-  const formatDate = (date: Date): string => {
-    return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
-  };
-
-  const escape = (text: string): string => {
-    return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
-  };
-
-  const start = new Date(event.starts_at);
-  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000); // 2 hours default
-
-  return [
-    'BEGIN:VCALENDAR',
-    'VERSION:2.0',
-    'PRODID:-//INVY//RSVP Event//EN',
-    'CALSCALE:GREGORIAN',
-    'METHOD:PUBLISH',
-    'BEGIN:VEVENT',
-    `UID:${Date.now()}@invy.rsvp`,
-    `DTSTAMP:${formatDate(new Date())}`,
-    `DTSTART:${formatDate(start)}`,
-    `DTEND:${formatDate(end)}`,
-    `SUMMARY:${escape(event.title)}`,
-    event.description ? `DESCRIPTION:${escape(event.description)}` : '',
-    event.location_text ? `LOCATION:${escape(event.location_text)}` : '',
-    'END:VEVENT',
-    'END:VCALENDAR',
-  ]
-    .filter(Boolean)
-    .join('\r\n');
-}
 

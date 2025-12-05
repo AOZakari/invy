@@ -4,7 +4,7 @@
 
 - [x] Core event creation flow
 - [x] Public event pages with RSVP forms
-- [x] Admin view via secret link
+- [x] Manage view via secret link
 - [x] Email notifications (Resend)
 - [x] Database schema and migrations
 - [x] TypeScript types and validation
@@ -182,7 +182,7 @@
 
 - [ ] API documentation
 - [ ] User guide
-- [ ] Admin guide
+- [ ] Organizer guide
 - [ ] Developer documentation
 - [ ] Terms of Service
 - [ ] Privacy Policy

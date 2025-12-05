@@ -4,9 +4,9 @@ export default function NotFound() {
   return (
     <main className="min-h-screen flex items-center justify-center p-4">
       <div className="text-center space-y-4">
-        <h1 className="text-4xl font-bold">Invalid Admin Link</h1>
+        <h1 className="text-4xl font-bold">Invalid Manage Link</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          This admin link is invalid or the event has been removed.
+          This manage link is invalid or the event has been removed.
         </p>
         <Link
           href="/"

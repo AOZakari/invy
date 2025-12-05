@@ -7,14 +7,14 @@ interface RsvpListProps {
 export default function RsvpList({ rsvps }: RsvpListProps) {
   if (rsvps.length === 0) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 text-center text-gray-500 dark:text-gray-400">
+      <div className="bg-white dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-6 text-center text-gray-500 dark:text-gray-400">
         No RSVPs yet. Share your event link to start collecting responses!
       </div>
     );
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6">
+    <div className="bg-white dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
       <h2 className="text-lg font-semibold mb-4">RSVPs ({rsvps.length})</h2>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">

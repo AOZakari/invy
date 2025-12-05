@@ -1,5 +1,5 @@
 import { notFound } from 'next/navigation';
-import { getEventByAdminSecret, updateEvent } from '@/lib/db/events';
+import { getEventByAdminSecret } from '@/lib/db/events';
 import { getRsvpsForEvent, getRsvpStatsForEvent } from '@/lib/db/rsvps';
 import AdminEventView from '@/components/AdminEventView';
 import type { Event } from '@/types/database';
@@ -15,7 +15,7 @@ export const metadata = {
   },
 };
 
-export default async function AdminPage({ params }: PageProps) {
+export default async function ManagePage({ params }: PageProps) {
   const { adminSecret } = await params;
   const event = await getEventByAdminSecret(adminSecret);
 

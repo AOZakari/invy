@@ -47,8 +47,10 @@ export async function createEvent(input: CreateEventInput): Promise<Event> {
       location_url: input.location_url || null,
       organizer_email: input.organizer_email,
       theme: input.theme || 'light',
+      notify_on_rsvp: input.notify_on_rsvp ?? true,
       admin_secret: adminSecret,
       owner_user_id: null, // Anonymous creation
+      custom_rsvp_fields: [], // Initialize as empty array
     })
     .select()
     .single();
@@ -78,7 +80,39 @@ export async function getEventBySlug(slug: string): Promise<Event | null> {
     throw new Error(`Failed to fetch event: ${error.message}`);
   }
 
-  return data as Event;
+  // Ensure custom_rsvp_fields is always an array
+  const event = data as Event;
+  if (!event.custom_rsvp_fields || !Array.isArray(event.custom_rsvp_fields)) {
+    event.custom_rsvp_fields = [];
+  }
+
+  return event;
+}
+
+/**
+ * Get event by id
+ */
+export async function getEventById(id: string): Promise<Event | null> {
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null;
+    }
+    throw new Error(`Failed to fetch event: ${error.message}`);
+  }
+
+  // Ensure custom_rsvp_fields is always an array
+  const event = data as Event;
+  if (!event.custom_rsvp_fields || !Array.isArray(event.custom_rsvp_fields)) {
+    event.custom_rsvp_fields = [];
+  }
+
+  return event;
 }
 
 /**
@@ -99,7 +133,13 @@ export async function getEventByAdminSecret(adminSecret: string): Promise<Event 
     throw new Error(`Failed to fetch event: ${error.message}`);
   }
 
-  return data as Event;
+  // Ensure custom_rsvp_fields is always an array
+  const event = data as Event;
+  if (!event.custom_rsvp_fields || !Array.isArray(event.custom_rsvp_fields)) {
+    event.custom_rsvp_fields = [];
+  }
+
+  return event;
 }
 
 /**
@@ -127,6 +167,7 @@ export async function updateEvent(
   if (input.location_text !== undefined) updateData.location_text = input.location_text;
   if (input.location_url !== undefined) updateData.location_url = input.location_url || null;
   if (input.theme !== undefined) updateData.theme = input.theme;
+  if (input.notify_on_rsvp !== undefined) updateData.notify_on_rsvp = input.notify_on_rsvp;
 
   const { data, error } = await supabaseAdmin
     .from('events')

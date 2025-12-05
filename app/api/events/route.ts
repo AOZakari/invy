@@ -33,11 +33,12 @@ export async function POST(request: NextRequest) {
       location_url: data.location_url || undefined,
       organizer_email: data.organizer_email,
       theme: data.theme,
+      notify_on_rsvp: data.notify_on_rsvp,
     });
 
     // Generate URLs
     const publicUrl = `${APP_URL}/e/${event.slug}`;
-    const adminUrl = `${APP_URL}/admin/${event.admin_secret}`;
+    const manageUrl = `${APP_URL}/manage/${event.admin_secret}`;
 
     // Send email (don't fail if email fails)
     try {
@@ -45,7 +46,8 @@ export async function POST(request: NextRequest) {
         organizerEmail: event.organizer_email,
         eventTitle: event.title,
         publicUrl,
-        adminUrl,
+        manageUrl,
+        eventId: event.id,
       });
     } catch (emailError) {
       console.error('Failed to send email:', emailError);
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
       slug: event.slug,
       adminSecret: event.admin_secret,
       publicUrl,
-      adminUrl,
+      manageUrl,
     });
   } catch (error) {
     console.error('Error creating event:', error);

@@ -14,7 +14,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { admin_secret, ...updateData } = body;
 
     if (!admin_secret) {
-      return NextResponse.json({ error: 'Admin secret required' }, { status: 401 });
+      return NextResponse.json({ error: 'Manage secret required' }, { status: 401 });
     }
 
     // Validate input

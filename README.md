@@ -133,6 +133,7 @@ git push -u origin main
 - `SUPABASE_SERVICE_ROLE_KEY` (private, server-side only)
 - `RESEND_API_KEY` (private, server-side only)
 - `NEXT_PUBLIC_APP_URL` (public, your production URL)
+- `SUPER_ADMIN_EMAIL` (optional, defaults to zak@aozakari.com)
 
 ## Project Structure
 
@@ -154,28 +155,40 @@ types/           # TypeScript type definitions
 
 - ✅ Create events without login
 - ✅ Public event pages with RSVP forms
-- ✅ Admin view via secret link
+- ✅ Manage view via secret link
 - ✅ Email notifications
-- ✅ Event editing via admin link
+- ✅ Event editing via manage link
 - ✅ RSVP statistics and management
 
-### Phase 6 - Dashboard Scaffold (Structure Ready)
+### Phase 6 - Dashboard & Auth - ✅ Complete
 
-- ✅ Dashboard UI structure
-- ✅ Event list and overview components
-- ⚠️ **Auth integration needed:** The dashboard structure is in place, but Supabase Auth needs to be fully integrated:
-  - Uncomment auth checks in `app/dashboard/layout.tsx`
-  - Set up login/signup pages
-  - Connect user sessions to event ownership
-  - Implement event claiming functionality
+- ✅ Full Supabase Auth integration
+- ✅ Login and signup pages
+- ✅ User dashboard with event management
+- ✅ Event claiming system
+- ✅ Super-admin dashboard
+- ✅ User and event management
+- ✅ Error and email logging
+- ✅ Permissions and feature gating system
+
+### Pro/Business Features (Infrastructure Ready)
+
+- ✅ Feature gating system implemented
+- ✅ Plan tier management
+- ✅ Per-event upgrade support
+- 🔜 CSV export (gated to Pro+)
+- 🔜 Advanced themes (gated to Pro+)
+- 🔜 Custom RSVP fields (gated to Pro+)
+- 🔜 Capacity limits (gated to Pro+)
+- 🔜 Analytics dashboard (gated to Pro+)
+- 🔜 Guest list visibility controls (gated to Pro+)
 
 ### Future Enhancements
 
-- 🔜 Full user authentication and dashboards
-- 🔜 Event claiming by email or admin secret
-- 🔜 Pro/Business tier features (CSV export, advanced themes, capacity limits)
-- 🔜 Guest list visibility controls
-- 🔜 Analytics and reporting
+- 🔜 Stripe billing integration (structure ready)
+- 🔜 QR code generation
+- 🔜 Email reminders
+- 🔜 White-label options
 
 ## License
 

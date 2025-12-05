@@ -1,26 +1,15 @@
+import { getUserFromSession } from '@/lib/auth/user';
 import { getEventsByUserId } from '@/lib/db/events';
-import { supabaseServer } from '@/lib/supabase/server';
 import EventsList from '@/components/EventsList';
 import DashboardOverview from '@/components/DashboardOverview';
 
 export default async function DashboardPage() {
-  // Get current user (Phase 6 - placeholder)
-  // In production, get from Supabase auth session
-  const userId = 'placeholder-user-id'; // TODO: Get from auth session
-
-  // For now, show empty state or placeholder
-  // Once auth is set up, uncomment:
-  /*
-  const {
-    data: { session },
-  } = await supabaseServer.auth.getSession();
-
-  if (!session) {
-    return <div>Please log in</div>;
+  const user = await getUserFromSession();
+  if (!user) {
+    return null; // Layout will redirect
   }
 
-  const events = await getEventsByUserId(session.user.id);
-  */
+  const events = await getEventsByUserId(user.id);
 
   return (
     <div className="space-y-8">
@@ -31,8 +20,8 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <DashboardOverview userId={userId} />
-      <EventsList userId={userId} />
+      <DashboardOverview userId={user.id} />
+      <EventsList userId={user.id} />
     </div>
   );
 }

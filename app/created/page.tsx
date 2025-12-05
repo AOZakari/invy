@@ -6,7 +6,7 @@ import Link from 'next/link';
 
 function CreatedPageContent() {
   const searchParams = useSearchParams();
-  const [copied, setCopied] = useState<'public' | 'admin' | null>(null);
+  const [copied, setCopied] = useState<'public' | 'manage' | null>(null);
   const [baseUrl, setBaseUrl] = useState('');
 
   useEffect(() => {
@@ -17,9 +17,9 @@ function CreatedPageContent() {
   const adminSecret = searchParams.get('adminSecret');
 
   const publicUrl = slug && baseUrl ? `${baseUrl}/e/${slug}` : '';
-  const adminUrl = adminSecret && baseUrl ? `${baseUrl}/admin/${adminSecret}` : '';
+  const manageUrl = adminSecret && baseUrl ? `${baseUrl}/manage/${adminSecret}` : '';
 
-  const copyToClipboard = async (text: string, type: 'public' | 'admin') => {
+  const copyToClipboard = async (text: string, type: 'public' | 'manage') => {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(type);
@@ -43,32 +43,32 @@ function CreatedPageContent() {
   }
 
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-50 dark:bg-gray-900">
+    <main className="min-h-screen flex flex-col items-center justify-center px-4 py-16 bg-white dark:bg-gray-950">
       <div className="max-w-2xl w-full">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-8 space-y-8">
-          <div className="text-center">
-            <div className="text-6xl mb-4">🎉</div>
-            <h1 className="text-3xl font-bold mb-2">Your INVY is ready!</h1>
+        <div className="bg-white dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-8 space-y-8">
+          <div className="text-center space-y-2">
+            <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Nice work</p>
+            <h1 className="text-3xl font-bold">Your INVY is ready</h1>
             <p className="text-gray-600 dark:text-gray-400">
-              Share your event link with guests, and save your admin link to manage RSVPs.
+              Share the guest link below and keep the manage link somewhere safe.
             </p>
           </div>
 
           <div className="space-y-4">
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <label className="block text-sm font-medium mb-2">Share your event:</label>
-              <div className="flex gap-2">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+              <label className="block text-sm font-medium mb-2">Share your event</label>
+              <div className="flex gap-2 flex-col sm:flex-row">
                 <input
                   type="text"
                   readOnly
                   value={publicUrl}
-                  className="flex-1 px-3 py-2 bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 rounded text-sm text-gray-900 dark:text-gray-100"
+                  className="flex-1 px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded text-sm text-gray-900 dark:text-gray-100"
                 />
                 <button
                   onClick={() => copyToClipboard(publicUrl, 'public')}
-                  className="px-4 py-2 bg-black dark:bg-white text-white dark:text-black rounded text-sm font-medium hover:opacity-90 transition-opacity"
+                  className="px-4 py-2 border border-gray-900 dark:border-white rounded text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-colors"
                 >
-                  {copied === 'public' ? '✓ Copied' : 'Copy'}
+                  {copied === 'public' ? '✓ Copied' : 'Copy link'}
                 </button>
               </div>
               <Link
@@ -76,41 +76,37 @@ function CreatedPageContent() {
                 target="_blank"
                 className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
               >
-                Preview your event →
+                Preview your event
               </Link>
             </div>
 
-            <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-              <label className="block text-sm font-medium mb-2">
-                Manage your event (save this link!):
-              </label>
-              <div className="flex gap-2">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4">
+              <label className="block text-sm font-medium mb-2">Manage your event</label>
+              <div className="flex gap-2 flex-col sm:flex-row">
                 <input
                   type="text"
                   readOnly
-                  value={adminUrl}
-                  className="flex-1 px-3 py-2 bg-white dark:bg-gray-600 border border-yellow-300 dark:border-yellow-700 rounded text-sm text-gray-900 dark:text-gray-100"
+                  value={manageUrl}
+                  className="flex-1 px-3 py-2 bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 rounded text-sm text-gray-900 dark:text-gray-100"
                 />
                 <button
-                  onClick={() => copyToClipboard(adminUrl, 'admin')}
-                  className="px-4 py-2 bg-yellow-600 dark:bg-yellow-500 text-white rounded text-sm font-medium hover:opacity-90 transition-opacity"
+                  onClick={() => copyToClipboard(manageUrl, 'manage')}
+                  className="px-4 py-2 border border-gray-900 dark:border-white rounded text-sm font-medium text-gray-900 dark:text-white hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-colors"
                 >
-                  {copied === 'admin' ? '✓ Copied' : 'Copy'}
+                  {copied === 'manage' ? '✓ Copied' : 'Copy manage link'}
                 </button>
               </div>
-              <p className="text-xs text-yellow-800 dark:text-yellow-200 mt-2">
-                ⚠️ We've also emailed you this link. Don't lose it!
-              </p>
+              <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">We also emailed this link to you.</p>
             </div>
           </div>
 
-          <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-            <Link
-              href="/"
-              className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
-            >
-              ← Back to home
-            </Link>
+          <div className="pt-4 border-t border-gray-200 dark:border-gray-800 flex justify-between text-sm text-gray-600 dark:text-gray-400">
+              <Link href="/" className="hover:text-gray-900 dark:hover:text-gray-100">
+                ← Back to home
+              </Link>
+              <Link href="/dashboard" className="hover:text-gray-900 dark:hover:text-gray-100">
+                Open dashboard
+              </Link>
           </div>
         </div>
       </div>

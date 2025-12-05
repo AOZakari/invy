@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase/server';
+import { getUserFromSession } from '@/lib/auth/user';
 import DashboardNav from '@/components/DashboardNav';
 
 export default async function DashboardLayout({
@@ -7,10 +8,7 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Check auth (Phase 6 - basic check, will be enhanced)
-  // For now, we'll allow access but structure for auth
-  // In production, uncomment this:
-  /*
+  // Check authentication
   const {
     data: { session },
   } = await supabaseServer.auth.getSession();
@@ -18,11 +16,16 @@ export default async function DashboardLayout({
   if (!session) {
     redirect('/login');
   }
-  */
+
+  // Get or create user record
+  const user = await getUserFromSession();
+  if (!user) {
+    redirect('/login');
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <DashboardNav />
+      <DashboardNav user={user} />
       <main className="max-w-7xl mx-auto px-4 py-8">{children}</main>
     </div>
   );

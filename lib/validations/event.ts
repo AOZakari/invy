@@ -9,6 +9,7 @@ export const createEventSchema = z.object({
   location_url: z.string().url('Invalid URL').optional().or(z.literal('')),
   organizer_email: z.string().email('Invalid email address'),
   theme: z.enum(['light', 'dark']).optional().default('light'),
+  notify_on_rsvp: z.boolean().optional().default(true),
 });
 
 export const updateEventSchema = z.object({
@@ -19,6 +20,7 @@ export const updateEventSchema = z.object({
   location_text: z.string().min(1).max(500).optional(),
   location_url: z.string().url().optional().or(z.literal('')),
   theme: z.enum(['light', 'dark']).optional(),
+  notify_on_rsvp: z.boolean().optional(),
 });
 
 export type CreateEventInput = z.infer<typeof createEventSchema>;
