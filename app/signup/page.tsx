@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 
 export default function SignupPage() {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -33,8 +31,8 @@ export default function SignupPage() {
 
       if (data.user) {
         if (data.session) {
-          router.push('/dashboard');
-          router.refresh();
+          window.location.href = '/dashboard';
+          return;
         } else {
           setSuccess(true);
         }

@@ -1,12 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 
 export default function LoginPage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -36,8 +35,9 @@ export default function LoginPage() {
       }
 
       if (data.user) {
-        router.push('/dashboard');
-        router.refresh();
+        // Full page navigation so the server receives the new session cookies
+        window.location.href = '/dashboard';
+        return;
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to sign in';

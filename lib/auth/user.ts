@@ -49,14 +49,14 @@ export async function getUserFromSession(): Promise<User | null> {
   const { createClient } = await import('@/lib/supabase/server');
   const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user: authUser },
+  } = await supabase.auth.getUser();
 
-  if (!session?.user) {
+  if (!authUser) {
     return null;
   }
 
-  const email = session.user.email;
+  const email = authUser.email;
   if (!email) {
     return null;
   }
@@ -65,12 +65,12 @@ export async function getUserFromSession(): Promise<User | null> {
   const { data, error } = await supabaseAdmin
     .from('users')
     .select('*')
-    .eq('id', session.user.id)
+    .eq('id', authUser.id)
     .single();
 
   if (error || !data) {
     // User doesn't exist in our table yet, create it
-    return await getOrCreateUserFromAuth(session.user);
+    return await getOrCreateUserFromAuth(authUser);
   }
 
   // Ensure super-admin role is set if needed
