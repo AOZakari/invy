@@ -23,12 +23,16 @@ export default async function EventsList({ userId }: EventsListProps) {
     );
   }
 
+  const statsList = await Promise.all(
+    events.map((event) => getRsvpStatsForEvent(event.id))
+  );
+
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-semibold">Your Events</h2>
       <div className="grid gap-4">
-        {events.map(async (event) => {
-          const stats = await getRsvpStatsForEvent(event.id);
+        {events.map((event, i) => {
+          const stats = statsList[i];
           const isUpcoming = new Date(event.starts_at) > new Date();
           const manageUrl = `/manage/${event.admin_secret}`;
 
