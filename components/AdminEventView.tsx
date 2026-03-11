@@ -1,8 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import type { Event, RSVP } from '@/types/database';
 import type { RsvpStats } from '@/lib/db/rsvps';
+import { MVP_PRICING } from '@/types/database';
 import RsvpList from './RsvpList';
 import EventStats from './EventStats';
 import CopyButton from './CopyButton';
@@ -29,6 +31,77 @@ export default function AdminEventView({
 
   const publicUrl = typeof window !== 'undefined' ? `${window.location.origin}/e/${event.slug}` : '';
   const manageUrl = typeof window !== 'undefined' ? `${window.location.origin}/manage/${adminSecret}` : '';
+
+  async function handleRsvpOpenToggle() {
+    const next = !(event.rsvp_open ?? true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/manage/events/${event.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_secret: adminSecret, rsvp_open: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to update');
+      setEvent({ ...event, rsvp_open: next });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    }
+  }
+
+  async function handleDuplicate() {
+    setError(null);
+    try {
+      const res = await fetch(`/api/manage/events/${event.id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_secret: adminSecret }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to duplicate');
+      window.location.href = `/created?slug=${data.slug}&adminSecret=${data.adminSecret}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirm('Delete this event? RSVPs will be removed. This cannot be undone.')) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/manage/events/${event.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ admin_secret: adminSecret }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to delete');
+      }
+      window.location.href = '/';
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong');
+    }
+  }
+
+  function handleExportCsv() {
+    const headers = ['Name', 'Email', 'Status', '+1', 'Date'];
+    const rows = rsvps.map((r) => [
+      (r.name || '').replace(/"/g, '""'),
+      r.contact_info.replace(/"/g, '""'),
+      r.status,
+      r.plus_one,
+      new Date(r.created_at).toLocaleDateString(),
+    ]);
+    const csv = [headers.join(','), ...rows.map((row) => row.map((c) => `"${c}"`).join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `rsvps-${event.slug}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   async function handleUpdate(formData: FormData) {
     setIsSaving(true);
@@ -131,8 +204,52 @@ export default function AdminEventView({
           </div>
         </div>
 
-        {/* Stats */}
-        <EventStats stats={stats} />
+        {/* Stats + RSVP toggle + actions */}
+        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+          <EventStats stats={stats} />
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600 dark:text-gray-400">RSVPs</span>
+              <button
+                type="button"
+                onClick={handleRsvpOpenToggle}
+                className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+                  event.rsvp_open ?? true
+                    ? 'bg-gray-900 dark:bg-white'
+                    : 'bg-gray-200 dark:bg-gray-700'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition ${
+                    event.rsvp_open ?? true ? 'translate-x-5' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="font-medium">{event.rsvp_open ?? true ? 'Open' : 'Closed'}</span>
+            </label>
+            <button
+              type="button"
+              onClick={handleExportCsv}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              Export CSV
+            </button>
+            <button
+              type="button"
+              onClick={handleDuplicate}
+              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
+              Duplicate event
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="px-4 py-2 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 rounded-lg text-sm font-medium hover:bg-red-50 dark:hover:bg-red-900/20"
+            >
+              Delete event
+            </button>
+          </div>
+        </div>
 
         {/* Edit Event Form */}
         <div className="bg-white dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-6 mb-6">
@@ -292,6 +409,38 @@ export default function AdminEventView({
 
         {/* RSVP List */}
         <RsvpList rsvps={rsvps} />
+
+        {/* Upgrade placeholder */}
+        <div className="mt-8 rounded-lg border border-gray-200 dark:border-gray-800 p-6 bg-gray-50 dark:bg-gray-900/50">
+          <h2 className="text-lg font-semibold mb-2">Upgrade</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Unlock more features. Billing coming soon.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="font-medium">{MVP_PRICING.keep.label}</p>
+              <p className="text-2xl font-bold">€{MVP_PRICING.keep.price}</p>
+              <p className="text-xs text-gray-500">per event</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="font-medium">{MVP_PRICING.proEvent.label}</p>
+              <p className="text-2xl font-bold">€{MVP_PRICING.proEvent.price}</p>
+              <p className="text-xs text-gray-500">per event</p>
+            </div>
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
+              <p className="font-medium">{MVP_PRICING.organizerHub.label}</p>
+              <p className="text-2xl font-bold">€{MVP_PRICING.organizerHub.price}</p>
+              <p className="text-xs text-gray-500">/ month</p>
+            </div>
+          </div>
+          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+            <Link href="/dashboard/billing" className="text-gray-900 dark:text-gray-100 underline">
+              Billing & plans
+            </Link>
+            {' · '}
+            Coming soon
+          </p>
+        </div>
       </div>
     </main>
   );

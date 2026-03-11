@@ -5,7 +5,6 @@ import { sendOrganizerRsvpEmail, sendRsvpConfirmationEmail } from '@/lib/emails/
 import { createRsvpSchema } from '@/lib/validations/rsvp';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/i;
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,9 +27,10 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
-    // Create RSVP
+    const name = (data.name ?? '').trim();
+
     const rsvp = await createRsvp(event_id, {
-      name: data.name,
+      name: name || '',
       contact_info: data.contact_info,
       status: data.status,
       plus_one: data.plus_one,
@@ -39,11 +39,11 @@ export async function POST(request: NextRequest) {
     const event = await getEventById(event_id);
 
     const contactInfo = data.contact_info.trim();
-    if (EMAIL_REGEX.test(contactInfo) && event) {
+    if (event) {
       try {
         await sendRsvpConfirmationEmail({
           guestEmail: contactInfo,
-          guestName: data.name,
+          guestName: name || 'Guest',
           eventTitle: event.title,
           eventDate: event.starts_at,
           eventLocation: event.location_text,
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
         await sendOrganizerRsvpEmail({
           organizerEmail: event.organizer_email,
           eventTitle: event.title,
-          guestName: data.name,
+          guestName: name || '—',
           guestStatus: data.status,
           guestContact: contactInfo,
           guestPlusOne: data.plus_one || 0,

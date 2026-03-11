@@ -5,17 +5,16 @@ export function generateICS(data: {
   title: string;
   description?: string;
   start: Date;
+  end?: Date;
   location?: string;
   locationUrl?: string;
 }): string {
-  const { title, description, start, location, locationUrl } = data;
-  
-  // Format date as YYYYMMDDTHHMMSSZ
+  const { title, description, start, end, location, locationUrl } = data;
+
   const formatDate = (date: Date): string => {
     return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
   };
 
-  // Escape text for ICS format
   const escape = (text: string): string => {
     return text
       .replace(/\\/g, '\\\\')
@@ -36,6 +35,10 @@ export function generateICS(data: {
     `DTSTART:${formatDate(start)}`,
     `SUMMARY:${escape(title)}`,
   ];
+
+  if (end) {
+    lines.push(`DTEND:${formatDate(end)}`);
+  }
 
   if (description) {
     lines.push(`DESCRIPTION:${escape(description)}`);

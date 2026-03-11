@@ -43,13 +43,14 @@ export async function getOrCreateUserFromAuth(
 }
 
 /**
- * Get user record from Supabase Auth session
+ * Get user record from Supabase Auth session (reads session from cookies)
  */
 export async function getUserFromSession(): Promise<User | null> {
-  const { supabaseServer } = await import('@/lib/supabase/server');
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
   const {
     data: { session },
-  } = await supabaseServer.auth.getSession();
+  } = await supabase.auth.getSession();
 
   if (!session?.user) {
     return null;

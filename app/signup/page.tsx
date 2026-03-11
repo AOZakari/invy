@@ -23,7 +23,7 @@ export default function SignupPage() {
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -32,19 +32,19 @@ export default function SignupPage() {
       }
 
       if (data.user) {
-        // If email confirmations are disabled, auto sign in
-        // Otherwise, show success message and wait for email confirmation
-        if (!data.session) {
-          // Email confirmation required
-          setSuccess(true);
-        } else {
-          // Auto signed in (email confirmations disabled)
+        if (data.session) {
           router.push('/dashboard');
           router.refresh();
+        } else {
+          setSuccess(true);
         }
+      } else {
+        setError('Something went wrong. Please try again.');
+        setIsLoading(false);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign up');
+      const message = err instanceof Error ? err.message : 'Failed to sign up';
+      setError(message);
       setIsLoading(false);
     }
   }
@@ -55,17 +55,22 @@ export default function SignupPage() {
         <div className="max-w-md w-full text-center space-y-4">
           <h1 className="text-2xl font-bold mb-4">Check your email</h1>
           <p className="text-gray-600 dark:text-gray-400">
-            We've sent you a confirmation link. Click it to verify your account.
+            We've sent a confirmation link to <strong>{email}</strong>. Click it to verify your account, then sign in.
           </p>
-          <p className="text-sm text-gray-500 dark:text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             After confirming, you'll be able to sign in.
           </p>
-          <Link
-            href="/login"
-            className="inline-block mt-4 text-blue-600 dark:text-blue-400 hover:underline"
-          >
-            Go to sign in
-          </Link>
+          <div className="pt-2 space-y-2">
+            <Link
+              href="/login"
+              className="inline-block text-blue-600 dark:text-blue-400 hover:underline font-medium"
+            >
+              Go to sign in
+            </Link>
+            <p className="text-xs text-gray-500 dark:text-gray-500 pt-4 border-t border-gray-200 dark:border-gray-800">
+              Not getting the email? Supabase may have confirmation on but no SMTP set. In Supabase Dashboard → Authentication → Providers → Email, turn <strong>off</strong> &quot;Confirm email&quot; so you can sign up without confirmation, then try again.
+            </p>
+          </div>
         </div>
       </main>
     );

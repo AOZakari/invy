@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
 export const createRsvpSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(200, 'Name is too long'),
-  contact_info: z.string().min(1, 'Contact info is required').max(500, 'Contact info is too long'),
+  name: z.string().max(200, 'Name is too long').optional().default(''),
+  contact_info: z.string().email('Valid email is required').max(500, 'Email is too long'),
   status: z.enum(['yes', 'no', 'maybe'], {
     message: 'Please select an RSVP status',
   }),

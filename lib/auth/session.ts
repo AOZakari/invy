@@ -1,9 +1,8 @@
 /**
  * Session management utilities
- * Handles Supabase Auth session retrieval
+ * Handles Supabase Auth session retrieval (reads session from cookies on server)
  */
 
-import { supabaseServer } from '@/lib/supabase/server';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 export interface Session {
@@ -12,13 +11,15 @@ export interface Session {
 }
 
 /**
- * Get current session from Supabase Auth
+ * Get current session from Supabase Auth (use createClient() from server so session is read from cookies)
  */
 export async function getSession(): Promise<Session | null> {
+  const { createClient } = await import('@/lib/supabase/server');
+  const supabase = await createClient();
   const {
     data: { session },
     error,
-  } = await supabaseServer.auth.getSession();
+  } = await supabase.auth.getSession();
 
   if (error || !session) {
     return null;

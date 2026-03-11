@@ -20,20 +20,32 @@ export async function POST(request: NextRequest) {
 
     const data = validationResult.data;
 
-    // Combine date and time into ISO timestamp
     const dateTimeString = `${data.date}T${data.time}`;
     const startsAt = new Date(dateTimeString).toISOString();
 
-    // Create event
+    let endsAt: string | null = null;
+    if (data.end_time && data.end_time.trim()) {
+      endsAt = new Date(`${data.date}T${data.end_time}`).toISOString();
+    }
+
+    let rsvpDeadline: string | null = null;
+    if (data.rsvp_deadline_date && data.rsvp_deadline_date.trim()) {
+      const timePart = data.rsvp_deadline_time?.trim() ? data.rsvp_deadline_time : '23:59';
+      rsvpDeadline = new Date(`${data.rsvp_deadline_date}T${timePart}`).toISOString();
+    }
+
     const event = await createEvent({
       title: data.title,
       description: data.description,
       starts_at: startsAt,
+      ends_at: endsAt ?? undefined,
       location_text: data.location_text,
       location_url: data.location_url || undefined,
       organizer_email: data.organizer_email,
       theme: data.theme,
       notify_on_rsvp: data.notify_on_rsvp,
+      capacity_limit: data.capacity_limit ?? undefined,
+      rsvp_deadline: rsvpDeadline ?? undefined,
     });
 
     // Generate URLs
@@ -58,6 +70,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       slug: event.slug,
       adminSecret: event.admin_secret,
+      organizerEmail: event.organizer_email,
       publicUrl,
       manageUrl,
     });

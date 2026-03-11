@@ -1,4 +1,6 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
 
 function getSupabaseAdmin() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -8,7 +10,7 @@ function getSupabaseAdmin() {
     throw new Error('Missing Supabase environment variables');
   }
 
-  return createClient(supabaseUrl, supabaseServiceRoleKey, {
+  return createSupabaseClient(supabaseUrl, supabaseServiceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -16,7 +18,8 @@ function getSupabaseAdmin() {
   });
 }
 
-function getSupabaseServer() {
+/** Server client that reads session from cookies. Use this in Server Components and Route Handlers. */
+export async function createClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -24,15 +27,24 @@ function getSupabaseServer() {
     throw new Error('Missing Supabase environment variables');
   }
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
+  const cookieStore = await cookies();
+
+  return createServerClient(supabaseUrl, supabaseAnonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options)
+          );
+        } catch {
+          // Ignored in Server Components when called from middleware
+        }
+      },
     },
   });
 }
 
-// Lazy initialization to avoid build-time errors
 export const supabaseAdmin = getSupabaseAdmin();
-export const supabaseServer = getSupabaseServer();
-

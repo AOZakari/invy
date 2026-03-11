@@ -1,109 +1,81 @@
-# Supabase Auth Setup Guide
+# Supabase auth setup (signup / login)
 
-## Step 1: Enable Email Auth in Supabase Dashboard
+Do these steps in the **Supabase Dashboard** so signup and login work on your app (e.g. https://invy-xi.vercel.app).
 
-1. Go to your Supabase project dashboard: https://supabase.com/dashboard
-2. Navigate to **Authentication** → **Providers** in the left sidebar
-3. Find **Email** provider and make sure it's **Enabled**
-4. Configure email settings:
-   - **Enable email confirmations**: You can disable this for faster testing, or keep it enabled for production
-   - **Secure email change**: Enable this for production
-   - **Double confirm email changes**: Optional, but recommended
+---
 
-## Step 2: Configure Email Templates (Optional)
+## 1. Open URL configuration
 
-1. Go to **Authentication** → **Email Templates**
-2. You can customize:
-   - **Confirm signup** - Email sent when user signs up
-   - **Magic Link** - If you enable magic link auth
-   - **Change Email Address** - When user changes email
-   - **Reset Password** - Password reset emails
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard) and open your project.
+2. In the left sidebar: **Authentication** → **URL Configuration**.
 
-3. For testing, you can use the default templates
-4. For production, customize them to match your INVY branding
+---
 
-## Step 3: Set Up Site URL (Important!)
+## 2. Set Site URL and Redirect URLs
 
-1. Go to **Authentication** → **URL Configuration**
-2. Set **Site URL** to your app URL:
-   - Development: `http://localhost:3000`
-   - Production: `https://invy.rsvp` (or your Vercel domain)
-3. Add **Redirect URLs**:
-   - `http://localhost:3000/dashboard` (for development)
-   - `https://invy.rsvp/dashboard` (for production)
-   - `http://localhost:3000/**` (wildcard for dev)
-   - `https://invy.rsvp/**` (wildcard for production)
+- **Site URL**  
+  Set to your app’s root URL, for example:
+  - Production: `https://invy-xi.vercel.app`
+  - Local: `http://localhost:3000`
 
-## Step 4: Test the Signup Flow
+- **Redirect URLs**  
+  Add these (one per line or as allowed list, depending on UI):
+  - `https://invy-xi.vercel.app/**`
+  - `https://invy-xi.vercel.app/dashboard`
+  - `https://invy-xi.vercel.app/auth/callback`
+  - For local dev: `http://localhost:3000/**`, `http://localhost:3000/dashboard`, `http://localhost:3000/auth/callback`
 
-1. Start your dev server:
-   ```bash
-   npm run dev
-   ```
+Save the URL configuration.
 
-2. Navigate to `http://localhost:3000/signup`
-3. Enter an email and password
-4. If email confirmations are enabled:
-   - Check your email for confirmation link
-   - Click the link to confirm
-   - You'll be redirected to `/dashboard`
-5. If email confirmations are disabled:
-   - You'll be automatically signed in and redirected to `/dashboard`
+---
 
-## Step 5: Test Super-Admin Access
+## 3. Turn off “Confirm email” (so signup works without email)
 
-1. Sign up with `zak@aozakari.com`
-2. The system will automatically assign the `superadmin` role
-3. You should see an "Admin" link in the dashboard navigation
-4. Navigate to `/admin` to access the super-admin dashboard
+If you leave “Confirm email” on, Supabase will only send signup emails if you’ve set up custom SMTP. Otherwise you get no email and users can’t log in.
 
-## Step 6: Test Login Flow
+**Recommended for now: turn confirmation off.**
 
-1. Sign out (click "Sign out" in dashboard)
-2. Navigate to `http://localhost:3000/login`
-3. Enter your email and password
-4. You should be redirected to `/dashboard`
+1. In the left sidebar: **Authentication** → **Providers**.
+2. Click **Email**.
+3. Find **“Confirm email”** (or “Enable email confirmations”).
+4. **Turn it OFF** and save.
 
-## Troubleshooting
+Result:
 
-### "Invalid login credentials"
-- Make sure you've confirmed your email (if email confirmations are enabled)
-- Check that the email/password are correct
-- Try resetting your password
+- Users can sign up and are logged in immediately (no email link).
+- No signup emails are sent; you can turn confirmation on later when you configure SMTP.
 
-### "Email not confirmed"
-- Check your email inbox for the confirmation link
-- Or disable email confirmations in Supabase dashboard for testing
+---
 
-### "User not found in dashboard"
-- The user record should be created automatically on first signup
-- Check Supabase dashboard → **Table Editor** → **users** table
-- Verify the user was created with the correct email
+## 4. Check that Email provider is on
 
-### Super-admin role not assigned
-- Check that the migration `003_add_user_role_and_stripe.sql` was run
-- Verify in Supabase dashboard → **Table Editor** → **users** table that `role` column exists
-- Manually set role: `UPDATE users SET role = 'superadmin' WHERE email = 'zak@aozakari.com';`
+Still under **Authentication** → **Providers** → **Email**:
 
-## Production Checklist
+- Ensure the Email provider is **Enabled**.
+- Save if you changed anything.
 
-Before going live:
+---
 
-- [ ] Enable email confirmations
-- [ ] Customize email templates
-- [ ] Set production Site URL
-- [ ] Add production redirect URLs
-- [ ] Test signup/login flow
-- [ ] Test password reset flow
-- [ ] Verify super-admin access works
-- [ ] Set up email rate limiting (if needed)
+## 5. Test the flow
 
-## Additional Auth Features (Future)
+1. Open your app: `https://invy-xi.vercel.app/signup` (or your real URL).
+2. Sign up with an email and password (e.g. 6+ characters).
+3. You should be redirected to the dashboard (no email needed).
+4. Sign out, then go to **Login** and sign in with the same email/password. You should land on the dashboard again.
 
-You can enable these later if needed:
+If you still get errors:
 
-- **Magic Link** - Passwordless login via email link
-- **OAuth providers** - Google, GitHub, etc.
-- **SMS Auth** - Phone number authentication
-- **MFA** - Multi-factor authentication
+- **“Invalid login credentials”** → Wrong password, or that user doesn’t exist. Try signing up again with a new email.
+- **“Email not confirmed”** → Step 3 wasn’t applied or didn’t save. Turn off “Confirm email” again and try a new signup.
+- **Redirect goes to wrong place / auth error** → Re-check Step 2 (Site URL and Redirect URLs must match your app’s URL exactly).
 
+---
+
+## Optional: send signup emails later
+
+When you want confirmation emails:
+
+1. **Authentication** → **Providers** → **Email** → turn **on** “Confirm email”.
+2. **Project Settings** → **Auth** (or **Authentication** → **SMTP**) and set **Custom SMTP** (e.g. Resend, SendGrid, Mailgun). Without custom SMTP, Supabase’s built-in sending is limited and may not deliver.
+
+Until then, keeping “Confirm email” **off** is the reliable way to have signup and login working.

@@ -8,6 +8,7 @@ export default function CreatePage() {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -15,17 +16,27 @@ export default function CreatePage() {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
-    const data = {
-      title: formData.get('title') as string,
-      description: formData.get('description') as string,
-      date: formData.get('date') as string,
-      time: formData.get('time') as string,
-      location_text: formData.get('location_text') as string,
-      location_url: formData.get('location_url') as string,
-      organizer_email: formData.get('organizer_email') as string,
+    const data: Record<string, unknown> = {
+      title: formData.get('title'),
+      description: formData.get('description') || '',
+      date: formData.get('date'),
+      time: formData.get('time'),
+      location_text: formData.get('location_text'),
+      location_url: formData.get('location_url') || '',
+      organizer_email: formData.get('organizer_email'),
       theme: (formData.get('theme') as string) || 'light',
       notify_on_rsvp: formData.get('notify_on_rsvp') === 'on',
     };
+    const endTime = formData.get('end_time') as string;
+    const capacity = formData.get('capacity_limit') as string;
+    const rsvpDeadlineDate = formData.get('rsvp_deadline_date') as string;
+    const rsvpDeadlineTime = formData.get('rsvp_deadline_time') as string;
+    if (endTime?.trim()) data.end_time = endTime;
+    if (capacity?.trim() && Number(capacity) > 0) data.capacity_limit = Number(capacity);
+    if (rsvpDeadlineDate?.trim()) {
+      data.rsvp_deadline_date = rsvpDeadlineDate;
+      if (rsvpDeadlineTime?.trim()) data.rsvp_deadline_time = rsvpDeadlineTime;
+    }
 
     try {
       const response = await fetch('/api/events', {
@@ -40,8 +51,12 @@ export default function CreatePage() {
         throw new Error(result.error || 'Failed to create event');
       }
 
-      // Redirect to success page with event data
-      router.push(`/created?slug=${result.slug}&adminSecret=${result.adminSecret}`);
+      const params = new URLSearchParams({
+        slug: result.slug,
+        adminSecret: result.adminSecret,
+      });
+      if (result.organizerEmail) params.set('email', result.organizerEmail);
+      router.push(`/created?${params.toString()}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong');
       setIsSubmitting(false);
@@ -188,6 +203,58 @@ export default function CreatePage() {
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>
               </select>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                {showAdvanced ? '−' : '+'} Advanced options
+              </button>
+              {showAdvanced && (
+                <div className="mt-3 space-y-3 pl-0">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label htmlFor="end_time" className="block text-sm font-medium mb-1">End time</label>
+                      <input
+                        type="time"
+                        id="end_time"
+                        name="end_time"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="capacity_limit" className="block text-sm font-medium mb-1">Max capacity</label>
+                      <input
+                        type="number"
+                        id="capacity_limit"
+                        name="capacity_limit"
+                        min={1}
+                        max={10000}
+                        placeholder="Optional"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">RSVP deadline</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        name="rsvp_deadline_date"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      />
+                      <input
+                        type="time"
+                        name="rsvp_deadline_time"
+                        className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-black dark:focus:ring-white bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

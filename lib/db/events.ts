@@ -43,14 +43,18 @@ export async function createEvent(input: CreateEventInput): Promise<Event> {
       title: input.title,
       description: input.description || null,
       starts_at: input.starts_at,
+      ends_at: input.ends_at ?? null,
       location_text: input.location_text,
       location_url: input.location_url || null,
       organizer_email: input.organizer_email,
       theme: input.theme || 'light',
       notify_on_rsvp: input.notify_on_rsvp ?? true,
       admin_secret: adminSecret,
-      owner_user_id: null, // Anonymous creation
-      custom_rsvp_fields: [], // Initialize as empty array
+      owner_user_id: null,
+      custom_rsvp_fields: [],
+      capacity_limit: input.capacity_limit ?? null,
+      rsvp_deadline: input.rsvp_deadline ?? null,
+      rsvp_open: true,
     })
     .select()
     .single();
@@ -164,10 +168,14 @@ export async function updateEvent(
   if (input.title !== undefined) updateData.title = input.title;
   if (input.description !== undefined) updateData.description = input.description || null;
   if (input.starts_at !== undefined) updateData.starts_at = input.starts_at;
+  if (input.ends_at !== undefined) updateData.ends_at = input.ends_at ?? null;
   if (input.location_text !== undefined) updateData.location_text = input.location_text;
   if (input.location_url !== undefined) updateData.location_url = input.location_url || null;
   if (input.theme !== undefined) updateData.theme = input.theme;
   if (input.notify_on_rsvp !== undefined) updateData.notify_on_rsvp = input.notify_on_rsvp;
+  if (input.capacity_limit !== undefined) updateData.capacity_limit = input.capacity_limit ?? null;
+  if (input.rsvp_deadline !== undefined) updateData.rsvp_deadline = input.rsvp_deadline ?? null;
+  if (input.rsvp_open !== undefined) updateData.rsvp_open = input.rsvp_open;
 
   const { data, error } = await supabaseAdmin
     .from('events')
@@ -234,6 +242,78 @@ export async function claimEvent(eventId: string, userId: string): Promise<Event
 
   if (error) {
     throw new Error(`Failed to claim event: ${error.message}`);
+  }
+
+  return data as Event;
+}
+
+/**
+ * Delete an event (and cascade RSVPs). Caller must verify admin_secret or ownership.
+ */
+export async function deleteEvent(eventId: string, adminSecret: string): Promise<void> {
+  const event = await getEventByAdminSecret(adminSecret);
+  if (!event || event.id !== eventId) {
+    throw new Error('Invalid admin secret');
+  }
+
+  const { error } = await supabaseAdmin.from('events').delete().eq('id', eventId);
+
+  if (error) {
+    throw new Error(`Failed to delete event: ${error.message}`);
+  }
+}
+
+/**
+ * Duplicate an event: same details, new slug and admin_secret, no RSVPs.
+ * Returns the new event. Caller must verify admin_secret.
+ */
+export async function duplicateEvent(eventId: string, adminSecret: string): Promise<Event> {
+  const source = await getEventByAdminSecret(adminSecret);
+  if (!source || source.id !== eventId) {
+    throw new Error('Invalid admin secret');
+  }
+
+  let slug = generateSlug();
+  let attempts = 0;
+  while (attempts < 10) {
+    const { data: existing } = await supabaseAdmin
+      .from('events')
+      .select('id')
+      .eq('slug', slug)
+      .single();
+    if (!existing) break;
+    slug = generateSlug();
+    attempts++;
+  }
+  if (attempts >= 10) {
+    throw new Error('Failed to generate unique slug');
+  }
+
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .insert({
+      slug,
+      title: source.title,
+      description: source.description,
+      starts_at: source.starts_at,
+      ends_at: source.ends_at,
+      location_text: source.location_text,
+      location_url: source.location_url,
+      organizer_email: source.organizer_email,
+      theme: source.theme,
+      notify_on_rsvp: source.notify_on_rsvp,
+      admin_secret: generateAdminSecret(),
+      owner_user_id: source.owner_user_id,
+      capacity_limit: source.capacity_limit,
+      rsvp_deadline: source.rsvp_deadline,
+      rsvp_open: true,
+      custom_rsvp_fields: source.custom_rsvp_fields || [],
+    })
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to duplicate event: ${error.message}`);
   }
 
   return data as Event;

@@ -26,8 +26,8 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
 
     const formData = new FormData(e.currentTarget);
     const data = {
-      name: formData.get('name') as string,
-      contact_info: formData.get('contact_info') as string,
+      name: (formData.get('name') as string)?.trim() || '',
+      contact_info: (formData.get('contact_info') as string)?.trim() || '',
       status: formData.get('status') as RSVPStatus,
       plus_one: parseInt(formData.get('plus_one') as string) || 0,
     };
@@ -77,36 +77,35 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
         )}
 
         <div>
-          <label htmlFor="name" className="block text-sm font-medium mb-2">
-            Name <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="text"
-            id="name"
-            name="name"
-            required
-            maxLength={200}
-            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${inputClasses}`}
-            placeholder="Your name"
-          />
-        </div>
-
-        <div>
           <label htmlFor="contact_info" className="block text-sm font-medium mb-2">
-            Contact Info <span className="text-red-500">*</span>
+            Email <span className="text-red-500">*</span>
           </label>
           <input
-            type="text"
+            type="email"
             id="contact_info"
             name="contact_info"
             required
             maxLength={500}
             className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${inputClasses}`}
-            placeholder="Email, phone, Instagram, WhatsApp, etc."
+            placeholder="you@example.com"
           />
           <p className="text-xs opacity-70 mt-1">
-            How should we reach you? Any format works.
+            We’ll send your confirmation here. No account needed.
           </p>
+        </div>
+
+        <div>
+          <label htmlFor="name" className="block text-sm font-medium mb-2">
+            Name <span className="text-gray-500 font-normal">(optional)</span>
+          </label>
+          <input
+            type="text"
+            id="name"
+            name="name"
+            maxLength={200}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${inputClasses}`}
+            placeholder="Your name"
+          />
         </div>
 
         <div>
@@ -200,10 +199,12 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
       const event = await response.json();
       const { generateICS } = await import('@/lib/utils/ics');
       const startDate = new Date(event.starts_at);
+      const endDate = event.ends_at ? new Date(event.ends_at) : undefined;
       const icsContent = generateICS({
         title: event.title,
         description: event.description || undefined,
         start: startDate,
+        end: endDate,
         location: event.location_text,
         locationUrl: event.location_url || undefined,
       });
@@ -222,13 +223,17 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
     }
   };
 
+  const whatsappUrl = publicUrl
+    ? `https://wa.me/?text=${encodeURIComponent(`Check out this event: ${publicUrl}`)}`
+    : '';
+
   return (
     <div className="text-center space-y-4 py-8 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
       <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">All set</p>
       <h2 className="text-3xl font-bold">Thanks for RSVPing</h2>
-      <p className="opacity-80">We’ve logged your response. Grab whatever you need below.</p>
+      <p className="opacity-80">We’ve logged your response and sent a confirmation to your email.</p>
 
-      <div className="flex flex-col sm:flex-row gap-3 justify-center pt-2">
+      <div className="flex flex-wrap justify-center gap-3 pt-2">
         <button
           onClick={handleAddToCalendar}
           className={`px-6 py-3 rounded-lg font-medium border ${
@@ -239,7 +244,6 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
         >
           Add to calendar
         </button>
-
         <button
           onClick={handleShare}
           className={`px-6 py-3 rounded-lg font-medium border ${
@@ -250,6 +254,20 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
         >
           {copied ? '✓ Link copied' : 'Share event'}
         </button>
+        {whatsappUrl && (
+          <a
+            href={whatsappUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex px-6 py-3 rounded-lg font-medium border ${
+              isDark
+                ? 'border-white text-white hover:bg-white hover:text-gray-900'
+                : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
+            }`}
+          >
+            Share on WhatsApp
+          </a>
+        )}
       </div>
     </div>
   );

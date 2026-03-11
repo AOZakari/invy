@@ -15,9 +15,13 @@ function CreatedPageContent() {
 
   const slug = searchParams.get('slug');
   const adminSecret = searchParams.get('adminSecret');
+  const organizerEmail = searchParams.get('email');
 
   const publicUrl = slug && baseUrl ? `${baseUrl}/e/${slug}` : '';
   const manageUrl = adminSecret && baseUrl ? `${baseUrl}/manage/${adminSecret}` : '';
+  const whatsappShareUrl = publicUrl
+    ? `https://wa.me/?text=${encodeURIComponent(`Check out this event: ${publicUrl}`)}`
+    : '';
 
   const copyToClipboard = async (text: string, type: 'public' | 'manage') => {
     try {
@@ -71,13 +75,25 @@ function CreatedPageContent() {
                   {copied === 'public' ? '✓ Copied' : 'Copy link'}
                 </button>
               </div>
-              <Link
-                href={publicUrl}
-                target="_blank"
-                className="text-sm text-blue-600 dark:text-blue-400 hover:underline mt-2 inline-block"
-              >
-                Preview your event
-              </Link>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Link
+                  href={publicUrl}
+                  target="_blank"
+                  className="text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  Preview your event
+                </Link>
+                {whatsappShareUrl && (
+                  <a
+                    href={whatsappShareUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-medium text-[#25D366] hover:underline"
+                  >
+                    Share on WhatsApp
+                  </a>
+                )}
+              </div>
             </div>
 
             <div className="rounded-lg border border-gray-200 dark:border-gray-800 p-4">
@@ -96,7 +112,9 @@ function CreatedPageContent() {
                   {copied === 'manage' ? '✓ Copied' : 'Copy manage link'}
                 </button>
               </div>
-              <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">We also emailed this link to you.</p>
+              <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
+                Your private manage link was sent by email{organizerEmail ? ` to ${organizerEmail}` : ''}. Use it to edit the event, see RSVPs, and export data. Save it somewhere safe—we won’t show it again here.
+              </p>
             </div>
           </div>
 

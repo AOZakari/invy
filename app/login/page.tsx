@@ -1,16 +1,24 @@
 'use client';
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase/client';
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const err = searchParams.get('error');
+    if (err === 'auth_callback_failed') {
+      setError('Confirmation link expired or invalid. Try signing in with your password, or sign up again.');
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -31,8 +39,13 @@ export default function LoginPage() {
         router.push('/dashboard');
         router.refresh();
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to sign in');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to sign in';
+      if (typeof msg === 'string' && (msg.includes('Email not confirmed') || msg.toLowerCase().includes('confirm'))) {
+        setError('Your email is not confirmed yet. Check your inbox for the confirmation link, or ask the site owner to turn off "Confirm email" in Supabase.');
+      } else {
+        setError(msg);
+      }
       setIsLoading(false);
     }
   }

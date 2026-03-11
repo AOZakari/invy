@@ -40,10 +40,28 @@ export default function DashboardNav({ user }: DashboardNavProps) {
                 Events
               </Link>
               <Link
+                href="/dashboard/claim"
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                Claim
+              </Link>
+              <Link
                 href="/create"
                 className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
               >
                 Create Event
+              </Link>
+              <Link
+                href="/dashboard/billing"
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                Billing
+              </Link>
+              <Link
+                href="/dashboard/settings"
+                className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
+              >
+                Settings
               </Link>
               {user.role === 'superadmin' && (
                 <Link

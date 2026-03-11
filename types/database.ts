@@ -38,6 +38,7 @@ export interface Event {
   title: string;
   description: string | null;
   starts_at: string; // ISO timestamp
+  ends_at: string | null;
   location_text: string;
   location_url: string | null;
   organizer_email: string;
@@ -45,6 +46,8 @@ export interface Event {
   admin_secret: string;
   owner_user_id: string | null;
   notify_on_rsvp: boolean;
+  rsvp_deadline: string | null;
+  rsvp_open: boolean;
   created_at: string;
   updated_at: string;
   // Future-ready fields
@@ -74,26 +77,33 @@ export interface CreateEventInput {
   title: string;
   description?: string;
   starts_at: string; // ISO timestamp
+  ends_at?: string | null;
   location_text: string;
   location_url?: string;
   organizer_email: string;
   theme?: Theme;
   notify_on_rsvp?: boolean;
+  capacity_limit?: number | null;
+  rsvp_deadline?: string | null;
 }
 
 export interface UpdateEventInput {
   title?: string;
   description?: string;
   starts_at?: string;
+  ends_at?: string | null;
   location_text?: string;
   location_url?: string;
   theme?: Theme;
   notify_on_rsvp?: boolean;
+  capacity_limit?: number | null;
+  rsvp_deadline?: string | null;
+  rsvp_open?: boolean;
 }
 
 export interface CreateRsvpInput {
-  name: string;
-  contact_info: string;
+  name?: string; // optional for MVP
+  contact_info: string; // email, required
   status: RSVPStatus;
   plus_one?: number;
   custom_fields?: Record<string, string | number | boolean>; // Answers to custom RSVP fields
@@ -121,7 +131,7 @@ export interface EmailLog {
   created_at: string;
 }
 
-// Pricing constants
+// Pricing constants (legacy Pro/Business)
 export const PRICING = {
   pro: {
     monthly: 9,
@@ -131,5 +141,12 @@ export const PRICING = {
     monthly: 29,
     yearly: 290, // ~17% discount
   },
+} as const;
+
+// MVP product tiers (scaffolding)
+export const MVP_PRICING = {
+  keep: { price: 2.99, label: 'Keep', per: 'event' },
+  proEvent: { price: 5.99, label: 'Pro Event', per: 'event' },
+  organizerHub: { price: 9.99, label: 'Organizer Hub', per: 'month' },
 } as const;
 
