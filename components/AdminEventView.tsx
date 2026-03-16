@@ -9,6 +9,47 @@ import RsvpList from './RsvpList';
 import EventStats from './EventStats';
 import CopyButton from './CopyButton';
 
+function UpgradeButton({
+  tier,
+  eventId,
+  adminSecret,
+  onError,
+}: {
+  tier: 'keep' | 'pro_event';
+  eventId: string;
+  adminSecret: string;
+  onError: (msg: string | null) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  async function handleClick() {
+    setLoading(true);
+    onError(null);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tier, eventId, adminSecret }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Checkout failed');
+      if (data.url) window.location.href = data.url;
+    } catch (err) {
+      onError(err instanceof Error ? err.message : 'Something went wrong');
+    } finally {
+      setLoading(false);
+    }
+  }
+  return (
+    <button
+      onClick={handleClick}
+      disabled={loading}
+      className="mt-auto px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded text-sm font-medium hover:opacity-90 disabled:opacity-50"
+    >
+      {loading ? 'Redirecting...' : 'Upgrade'}
+    </button>
+  );
+}
+
 interface AdminEventViewProps {
   event: Event;
   rsvps: RSVP[];
@@ -410,37 +451,44 @@ export default function AdminEventView({
         {/* RSVP List */}
         <RsvpList rsvps={rsvps} />
 
-        {/* Upgrade placeholder */}
-        <div className="mt-8 rounded-lg border border-gray-200 dark:border-gray-800 p-6 bg-gray-50 dark:bg-gray-900/50">
-          <h2 className="text-lg font-semibold mb-2">Upgrade</h2>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-            Unlock more features. Billing coming soon.
-          </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-              <p className="font-medium">{MVP_PRICING.keep.label}</p>
-              <p className="text-2xl font-bold">€{MVP_PRICING.keep.price}</p>
-              <p className="text-xs text-gray-500">per event</p>
+        {/* Upgrade */}
+        {event.plan_tier === 'free' && (
+          <div className="mt-8 rounded-lg border border-gray-200 dark:border-gray-800 p-6 bg-gray-50 dark:bg-gray-900/50">
+            <h2 className="text-lg font-semibold mb-2">Upgrade this event</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+              Keep your event live longer or unlock Pro features. One-time payment per event.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-col">
+                <p className="font-medium">{MVP_PRICING.keep.label}</p>
+                <p className="text-2xl font-bold">€{MVP_PRICING.keep.price}</p>
+                <p className="text-xs text-gray-500 mb-3">per event — keep live longer</p>
+                <UpgradeButton
+                  tier="keep"
+                  eventId={event.id}
+                  adminSecret={adminSecret}
+                  onError={setError}
+                />
+              </div>
+              <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-col">
+                <p className="font-medium">{MVP_PRICING.proEvent.label}</p>
+                <p className="text-2xl font-bold">€{MVP_PRICING.proEvent.price}</p>
+                <p className="text-xs text-gray-500 mb-3">per event — Pro features</p>
+                <UpgradeButton
+                  tier="pro_event"
+                  eventId={event.id}
+                  adminSecret={adminSecret}
+                  onError={setError}
+                />
+              </div>
             </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-              <p className="font-medium">{MVP_PRICING.proEvent.label}</p>
-              <p className="text-2xl font-bold">€{MVP_PRICING.proEvent.price}</p>
-              <p className="text-xs text-gray-500">per event</p>
-            </div>
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4">
-              <p className="font-medium">{MVP_PRICING.organizerHub.label}</p>
-              <p className="text-2xl font-bold">€{MVP_PRICING.organizerHub.price}</p>
-              <p className="text-xs text-gray-500">/ month</p>
-            </div>
+            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+              <Link href="/dashboard/billing" className="text-gray-900 dark:text-gray-100 underline">
+                Organizer Hub subscription
+              </Link>
+            </p>
           </div>
-          <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-            <Link href="/dashboard/billing" className="text-gray-900 dark:text-gray-100 underline">
-              Billing & plans
-            </Link>
-            {' · '}
-            Coming soon
-          </p>
-        </div>
+        )}
       </div>
     </main>
   );

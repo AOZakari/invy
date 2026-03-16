@@ -28,8 +28,11 @@ function formatTime(dateString: string): string {
   });
 }
 
-/** Event is expired 7 days after it starts */
-function isEventExpired(startsAt: string): boolean {
+/** Event is expired 7 days after it starts (free tier). Pro/business tiers stay live. */
+function isEventExpired(startsAt: string, planTier: string | null | undefined): boolean {
+  if (planTier === 'pro' || planTier === 'business') {
+    return false; // Keep and Pro Event stay live
+  }
   const start = new Date(startsAt).getTime();
   const expiry = start + 7 * 24 * 60 * 60 * 1000;
   return Date.now() > expiry;
@@ -45,6 +48,7 @@ export async function generateMetadata({ params }: PageProps) {
   const description =
     event.description?.slice(0, 160) ||
     `${event.title} — ${formatDate(event.starts_at)} at ${event.location_text}`;
+  const ogImage = `${APP_URL}/og-image.svg`;
   return {
     title: event.title,
     description,
@@ -53,11 +57,13 @@ export async function generateMetadata({ params }: PageProps) {
       description,
       url,
       siteName: 'INVY',
+      images: [{ url: ogImage, width: 1200, height: 630 }],
     },
     twitter: {
       card: 'summary_large_image',
       title: event.title,
       description,
+      images: [ogImage],
     },
   };
 }
@@ -71,7 +77,7 @@ export default async function EventPage({ params }: PageProps) {
   }
 
   const rsvpOpen = event.rsvp_open ?? true;
-  const expired = isEventExpired(event.starts_at);
+  const expired = isEventExpired(event.starts_at, event.plan_tier);
   const canRsvp = rsvpOpen && !expired;
 
   let spotsLeft: number | null = null;
@@ -157,10 +163,6 @@ export default async function EventPage({ params }: PageProps) {
         ) : (
           <RsvpForm eventId={event.id} eventSlug={slug} theme={event.theme} />
         )}
-
-        <div className="mt-12 pt-8 border-t border-gray-200 dark:border-gray-800 text-center text-sm opacity-60">
-          <p>Powered by INVY</p>
-        </div>
       </div>
     </main>
   );
