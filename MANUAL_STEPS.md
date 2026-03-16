@@ -22,8 +22,9 @@ These steps require your accounts (Namecheap, Vercel, Resend, Stripe) and cannot
    - Save
 4. Wait for propagation (up to 48 hours). Vercel will auto-issue SSL.
 5. **Vercel:** Project → **Settings** → **Environment Variables**
-   - Set `NEXT_PUBLIC_APP_URL` = `https://invy.rsvp` (or your domain)
+   - Set `NEXT_PUBLIC_APP_URL` = `https://invy.rsvp` (apex only, no www)
    - Redeploy after adding
+6. **www redirect:** The repo includes `vercel.json` that redirects `www.invy.rsvp` → `invy.rsvp`. This fixes blank pages on www and keeps one canonical URL for cookies/auth.
 
 ### Option B: Advanced DNS (keep Namecheap DNS)
 
@@ -89,8 +90,8 @@ Emails use `noreply@invy.rsvp` and `contact@invy.rsvp`. Resend must verify the d
 
    **Product 3: Organizer Hub**
    - Name: `Organizer Hub`
-   - Description: `All events, reminders, and more. Subscription.`
-   - Pricing: **Recurring** → €9.99/month (EUR)
+   - Description: `Pro + Business features on all your events. Subscription.`
+   - Pricing: **Recurring** → €15.99/month (EUR)
    - Copy the **Price ID** → `STRIPE_ORGANIZER_HUB_PRICE_ID`
 
 ### 3.4 Webhook
@@ -149,7 +150,7 @@ Emails reference `contact@invy.rsvp` for support.
 ## 6. Supabase Auth (if not done)
 
 1. **Supabase Dashboard** → **Authentication** → **URL Configuration**
-   - **Site URL:** `https://invy.rsvp`
+   - **Site URL:** `https://invy.rsvp` (apex only; www redirects to apex)
    - **Redirect URLs:** Add `https://invy.rsvp/**`, `https://invy.rsvp/dashboard`, `https://invy.rsvp/auth/callback`
 2. **Authentication** → **Providers** → **Email**
    - Turn **off** "Confirm email" if you want signup without confirmation emails (until you have custom SMTP).
@@ -170,3 +171,4 @@ Emails reference `contact@invy.rsvp` for support.
 - [ ] Favicon and OG image in `public/` (or placeholder)
 - [ ] Contact email set up
 - [ ] Supabase auth URLs updated
+- [ ] **Supabase Storage:** Create bucket `event-images` (public) for Pro cover/poster images. Storage → New bucket → name `event-images`, Public bucket = Yes.

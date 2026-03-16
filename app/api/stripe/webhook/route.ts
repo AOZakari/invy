@@ -51,18 +51,25 @@ export async function POST(request: NextRequest) {
           await supabaseAdmin
             .from('users')
             .update({
-              plan_tier: 'pro',
+              plan_tier: 'business',
               stripe_customer_id: session.customer || null,
               stripe_subscription_id: session.subscription || null,
               subscription_status: session.subscription ? 'active' : null,
             })
             .eq('id', metadata.userId);
-        } else if ((tier === 'keep' || tier === 'pro_event') && metadata.eventId) {
-          const eventPlanTier = tier === 'keep' ? 'pro' : 'business';
+        } else if (tier === 'keep' && metadata.eventId) {
           await supabaseAdmin
             .from('events')
             .update({
-              plan_tier: eventPlanTier,
+              keep_live: true,
+              upgraded_at: new Date().toISOString(),
+            })
+            .eq('id', metadata.eventId);
+        } else if (tier === 'pro_event' && metadata.eventId) {
+          await supabaseAdmin
+            .from('events')
+            .update({
+              plan_tier: 'business',
               upgraded_at: new Date().toISOString(),
             })
             .eq('id', metadata.eventId);
@@ -91,7 +98,7 @@ export async function POST(request: NextRequest) {
           .from('users')
           .update({
             subscription_status: subscriptionStatus,
-            plan_tier: subscription.status === 'active' ? 'pro' : 'free',
+            plan_tier: subscription.status === 'active' ? 'business' : 'free',
           })
           .eq('stripe_subscription_id', subscription.id);
 

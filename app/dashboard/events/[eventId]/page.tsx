@@ -47,6 +47,7 @@ export default async function DashboardEventPage({ params }: PageProps) {
         rsvps={rsvps}
         stats={stats}
         adminSecret={event.admin_secret}
+        user={user}
       />
     </div>
   );

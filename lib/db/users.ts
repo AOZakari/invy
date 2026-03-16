@@ -128,6 +128,22 @@ export async function updateUserPlanTier(
 }
 
 /**
+ * Delete user (super-admin only).
+ * Removes from Supabase Auth and public.users. Events owned by user become unclaimed.
+ */
+export async function deleteUser(userId: string): Promise<void> {
+  const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(userId);
+  if (authError) {
+    throw new Error(`Failed to delete auth user: ${authError.message}`);
+  }
+
+  const { error: dbError } = await supabaseAdmin.from('users').delete().eq('id', userId);
+  if (dbError) {
+    throw new Error(`Failed to delete user record: ${dbError.message}`);
+  }
+}
+
+/**
  * Update user role (super-admin only)
  */
 export async function updateUserRole(

@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
+import { getExactOccupancy } from '@/lib/db/capacity';
 import type { RSVP, CreateRsvpInput } from '@/types/database';
 
 /**
@@ -13,6 +14,7 @@ export async function createRsvp(eventId: string, input: CreateRsvpInput): Promi
       contact_info: input.contact_info,
       status: input.status,
       plus_one: input.plus_one || 0,
+      custom_field_values: input.custom_fields || input.custom_field_values || {},
     })
     .select()
     .single();
@@ -50,6 +52,9 @@ export interface RsvpStats {
   yes: number;
   no: number;
   maybe: number;
+  pending: number;
+  approved: number;
+  declined: number;
   estimatedGuests: number; // Includes +1s
 }
 
@@ -61,21 +66,21 @@ export async function getRsvpStatsForEvent(eventId: string): Promise<RsvpStats> 
     yes: 0,
     no: 0,
     maybe: 0,
+    pending: 0,
+    approved: 0,
+    declined: 0,
     estimatedGuests: 0,
   };
 
   rsvps.forEach((rsvp) => {
-    stats[rsvp.status]++;
-    if (rsvp.status === 'yes') {
-      stats.estimatedGuests += 1 + rsvp.plus_one;
-    } else if (rsvp.status === 'maybe') {
-      // Count maybe as 0.5 + half of their +1s (conservative estimate)
-      stats.estimatedGuests += 0.5 + rsvp.plus_one * 0.5;
+    const k = rsvp.status as keyof RsvpStats;
+    if (k in stats && typeof stats[k] === 'number') {
+      (stats[k] as number)++;
     }
   });
 
-  // Round estimated guests
-  stats.estimatedGuests = Math.round(stats.estimatedGuests);
+  // Use shared occupancy logic; round for display
+  stats.estimatedGuests = Math.round(getExactOccupancy(rsvps));
 
   return stats;
 }
@@ -89,5 +94,48 @@ export async function deleteRsvp(rsvpId: string): Promise<void> {
   if (error) {
     throw new Error(`Failed to delete RSVP: ${error.message}`);
   }
+}
+
+/**
+ * Update RSVP status (for request-to-attend: approve/decline)
+ */
+export async function updateRsvpStatus(
+  rsvpId: string,
+  status: 'approved' | 'declined'
+): Promise<RSVP | null> {
+  const { data, error } = await supabaseAdmin
+    .from('rsvps')
+    .update({ status })
+    .eq('id', rsvpId)
+    .select()
+    .single();
+
+  if (error) {
+    throw new Error(`Failed to update RSVP: ${error.message}`);
+  }
+
+  return data as RSVP;
+}
+
+/**
+ * Bulk update RSVP statuses
+ */
+export async function bulkUpdateRsvpStatus(
+  rsvpIds: string[],
+  status: 'approved' | 'declined'
+): Promise<number> {
+  if (rsvpIds.length === 0) return 0;
+
+  const { data, error } = await supabaseAdmin
+    .from('rsvps')
+    .update({ status })
+    .in('id', rsvpIds)
+    .select('id');
+
+  if (error) {
+    throw new Error(`Failed to bulk update RSVPs: ${error.message}`);
+  }
+
+  return data?.length ?? 0;
 }
 

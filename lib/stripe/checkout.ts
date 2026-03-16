@@ -5,7 +5,45 @@
 
 import { getStripe, STRIPE_PRICE_IDS } from './client';
 
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://invy.rsvp';
+const PRODUCTION_URL = 'https://invy.rsvp';
+
+export function getValidAppUrl(requestOrigin?: string | null): string {
+  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
+  // Reject common invalid values that pass truthiness check
+  if (
+    envUrl &&
+    envUrl !== 'undefined' &&
+    envUrl !== 'null' &&
+    !envUrl.startsWith('undefined') &&
+    envUrl.length > 10
+  ) {
+    try {
+      const parsed = new URL(envUrl.trim());
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.origin;
+      }
+    } catch {
+      // Fall through to fallbacks
+    }
+  }
+  // Use request origin if valid (e.g. when user is on invy.rsvp)
+  if (requestOrigin) {
+    try {
+      const parsed = new URL(requestOrigin.trim());
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        return parsed.origin;
+      }
+    } catch {
+      // Fall through
+    }
+  }
+  return PRODUCTION_URL;
+}
+
+/** Trim trailing slashes and whitespace from base URL before building paths */
+export function sanitizeBaseUrl(base: string): string {
+  return base.trim().replace(/\/+$/, '');
+}
 
 export type EventTier = 'keep' | 'pro_event';
 export type CheckoutTier = EventTier | 'organizer_hub';
@@ -16,19 +54,22 @@ export async function createEventCheckoutSession(params: {
   successUrl?: string;
   cancelUrl?: string;
   adminSecret?: string;
+  requestOrigin?: string | null;
 }): Promise<{ url: string }> {
   const priceId = params.tier === 'keep' ? STRIPE_PRICE_IDS.keep : STRIPE_PRICE_IDS.proEvent;
   if (!priceId) {
     throw new Error(`Stripe price ID not configured for tier: ${params.tier}`);
   }
 
-  const successUrl = params.successUrl || (params.adminSecret ? `${APP_URL}/manage/${params.adminSecret}?upgraded=true` : `${APP_URL}/dashboard/billing?success=true`);
-  const cancelUrl = params.cancelUrl || (params.adminSecret ? `${APP_URL}/manage/${params.adminSecret}?canceled=true` : `${APP_URL}/dashboard/billing?canceled=true`);
+  const baseUrl = sanitizeBaseUrl(getValidAppUrl(params.requestOrigin));
+  const successUrl = params.successUrl || (params.adminSecret ? `${baseUrl}/manage/${params.adminSecret}?upgraded=true` : `${baseUrl}/dashboard/billing?success=true`);
+  const cancelUrl = params.cancelUrl || (params.adminSecret ? `${baseUrl}/manage/${params.adminSecret}?canceled=true` : `${baseUrl}/dashboard/billing?canceled=true`);
 
   const session = await getStripe().checkout.sessions.create({
     mode: 'payment',
     payment_method_types: ['card', 'paypal'],
     line_items: [{ price: priceId, quantity: 1 }],
+    allow_promotion_codes: true,
     success_url: successUrl,
     cancel_url: cancelUrl,
     metadata: {
@@ -49,19 +90,22 @@ export async function createHubCheckoutSession(params: {
   userEmail: string;
   successUrl?: string;
   cancelUrl?: string;
+  requestOrigin?: string | null;
 }): Promise<{ url: string }> {
   const priceId = STRIPE_PRICE_IDS.organizerHub;
   if (!priceId) {
     throw new Error('Stripe price ID not configured for Organizer Hub');
   }
 
-  const successUrl = params.successUrl || `${APP_URL}/dashboard/billing?success=true`;
-  const cancelUrl = params.cancelUrl || `${APP_URL}/dashboard/billing?canceled=true`;
+  const baseUrl = sanitizeBaseUrl(getValidAppUrl(params.requestOrigin));
+  const successUrl = params.successUrl || `${baseUrl}/dashboard/billing?success=true`;
+  const cancelUrl = params.cancelUrl || `${baseUrl}/dashboard/billing?canceled=true`;
 
   const session = await getStripe().checkout.sessions.create({
     mode: 'subscription',
     payment_method_types: ['card', 'paypal'],
     line_items: [{ price: priceId, quantity: 1 }],
+    allow_promotion_codes: true,
     success_url: successUrl,
     cancel_url: cancelUrl,
     customer_email: params.userEmail,

@@ -1,10 +1,17 @@
-import type { RSVP } from '@/types/database';
+import type { RSVP, CustomRsvpField } from '@/types/database';
 
 interface RsvpListProps {
   rsvps: RSVP[];
+  customRsvpFields?: CustomRsvpField[];
 }
 
-export default function RsvpList({ rsvps }: RsvpListProps) {
+function formatCustomValue(val: string | number | boolean | undefined): string {
+  if (val === undefined || val === null) return '';
+  if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+  return String(val);
+}
+
+export default function RsvpList({ rsvps, customRsvpFields = [] }: RsvpListProps) {
   if (rsvps.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-6 text-center text-gray-500 dark:text-gray-400">
@@ -12,6 +19,8 @@ export default function RsvpList({ rsvps }: RsvpListProps) {
       </div>
     );
   }
+
+  const customHeaders = customRsvpFields.map((f) => f.label);
 
   return (
     <div className="bg-white dark:bg-gray-950 rounded-lg border border-gray-200 dark:border-gray-800 p-6">
@@ -24,6 +33,11 @@ export default function RsvpList({ rsvps }: RsvpListProps) {
               <th className="text-left py-3 px-4 font-medium">Contact</th>
               <th className="text-left py-3 px-4 font-medium">Status</th>
               <th className="text-left py-3 px-4 font-medium">+1</th>
+              {customHeaders.map((h) => (
+                <th key={h} className="text-left py-3 px-4 font-medium">
+                  {h}
+                </th>
+              ))}
               <th className="text-left py-3 px-4 font-medium">Date</th>
             </tr>
           </thead>
@@ -49,6 +63,11 @@ export default function RsvpList({ rsvps }: RsvpListProps) {
                   </span>
                 </td>
                 <td className="py-3 px-4">{rsvp.plus_one > 0 ? `+${rsvp.plus_one}` : '-'}</td>
+                {customRsvpFields.map((f) => (
+                  <td key={f.id} className="py-3 px-4">
+                    {formatCustomValue(rsvp.custom_field_values?.[f.id])}
+                  </td>
+                ))}
                 <td className="py-3 px-4 text-gray-500 dark:text-gray-400">
                   {new Date(rsvp.created_at).toLocaleDateString()}
                 </td>

@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
-import Footer from '@/components/Footer';
+import FooterWrapper from '@/components/FooterWrapper';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://invy.rsvp';
 
@@ -34,7 +34,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="flex flex-col min-h-screen">
         <div className="flex-1">{children}</div>
-        <Footer />
+        <FooterWrapper />
       </body>
     </html>
   );

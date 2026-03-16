@@ -1,19 +1,23 @@
 'use client';
 
 import { useState } from 'react';
+import type { Theme } from '@/types/database';
+import { getThemeClasses } from '@/lib/utils/themes';
 
 interface EventPageActionsProps {
   eventSlug: string;
   eventTitle: string;
-  isDark: boolean;
+  theme: Theme;
+  customShareMessage?: string | null;
 }
 
-export default function EventPageActions({ eventSlug, eventTitle, isDark }: EventPageActionsProps) {
+export default function EventPageActions({ eventSlug, eventTitle, theme, customShareMessage }: EventPageActionsProps) {
   const [copied, setCopied] = useState(false);
 
   const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
   const eventUrl = `${baseUrl}/e/${eventSlug}`;
   const icsUrl = `${baseUrl}/api/events/${eventSlug}/ics`;
+  const shareText = customShareMessage?.trim() || `Join me at ${eventTitle}`;
 
   const handleShare = async () => {
     if (typeof navigator !== 'undefined' && navigator.share) {
@@ -21,7 +25,7 @@ export default function EventPageActions({ eventSlug, eventTitle, isDark }: Even
         await navigator.share({
           title: eventTitle,
           url: eventUrl,
-          text: `Join me at ${eventTitle}`,
+          text: shareText,
         });
       } catch {
         // User cancelled or error — fallback to copy
@@ -42,9 +46,8 @@ export default function EventPageActions({ eventSlug, eventTitle, isDark }: Even
     }
   };
 
-  const btnClass = isDark
-    ? 'border border-white text-white hover:bg-white hover:text-gray-900'
-    : 'border border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white';
+  const themeClasses = getThemeClasses(theme);
+  const btnClass = themeClasses.button;
 
   return (
     <div className="flex flex-wrap gap-3">

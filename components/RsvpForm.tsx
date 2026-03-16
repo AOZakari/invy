@@ -1,23 +1,25 @@
 'use client';
 
 import { useState } from 'react';
-import type { RSVPStatus, Theme } from '@/types/database';
+import type { RSVPStatus, Theme, CustomRsvpField } from '@/types/database';
+import { getThemeClasses } from '@/lib/utils/themes';
 
 interface RsvpFormProps {
   eventId: string;
   eventSlug: string;
   theme: Theme;
+  customRsvpFields?: CustomRsvpField[];
+  /** Request-to-attend mode: guest requests instead of instant confirm */
+  requestMode?: boolean;
 }
 
-export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
+export default function RsvpForm({ eventId, eventSlug, theme, customRsvpFields = [], requestMode = false }: RsvpFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const isDark = theme === 'dark';
-  const inputClasses = isDark
-    ? 'bg-gray-800 border-gray-700 text-gray-100 focus:ring-white'
-    : 'bg-white border-gray-300 text-gray-900 focus:ring-black';
+  const themeClasses = getThemeClasses(theme);
+  const inputClasses = themeClasses.input;
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -25,11 +27,25 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
     setError(null);
 
     const formData = new FormData(e.currentTarget);
+    const custom_field_values: Record<string, string | number | boolean> = {};
+    for (const field of customRsvpFields) {
+      if (field.type === 'checkbox') {
+        custom_field_values[field.id] = formData.get(`custom_${field.id}`) === 'on';
+      } else {
+        const val = formData.get(`custom_${field.id}`);
+        if (val !== null && val !== '') {
+          if (field.type === 'number') custom_field_values[field.id] = Number(val);
+          else custom_field_values[field.id] = String(val);
+        }
+      }
+    }
+
     const data = {
       name: (formData.get('name') as string)?.trim() || '',
       contact_info: (formData.get('contact_info') as string)?.trim() || '',
-      status: formData.get('status') as RSVPStatus,
+      status: (requestMode ? 'pending' : formData.get('status')) as RSVPStatus,
       plus_one: parseInt(formData.get('plus_one') as string) || 0,
+      custom_field_values: Object.keys(custom_field_values).length > 0 ? custom_field_values : undefined,
     };
 
     try {
@@ -56,22 +72,16 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
   }
 
   if (submitted) {
-    return <SuccessState eventSlug={eventSlug} theme={theme} />;
+    return <SuccessState eventSlug={eventSlug} theme={theme} requestMode={requestMode} />;
   }
 
   return (
     <div>
-      <h2 className="text-2xl font-bold mb-6">RSVP</h2>
+      <h2 className="text-2xl font-bold mb-6">{requestMode ? 'Request to join' : 'RSVP'}</h2>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div
-            className={`px-4 py-3 rounded ${
-              isDark
-                ? 'bg-red-900/20 border border-red-800 text-red-200'
-                : 'bg-red-50 border border-red-200 text-red-800'
-            }`}
-          >
+          <div className={`px-4 py-3 rounded ${themeClasses.error}`}>
             {error}
           </div>
         )}
@@ -108,6 +118,7 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
           />
         </div>
 
+        {!requestMode && (
         <div>
           <label htmlFor="status" className="block text-sm font-medium mb-2">
             Will you attend? <span className="text-red-500">*</span>
@@ -124,6 +135,7 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
             <option value="no">Sorry, can't make it</option>
           </select>
         </div>
+        )}
 
         <div>
           <label htmlFor="plus_one" className="block text-sm font-medium mb-2">
@@ -143,26 +155,68 @@ export default function RsvpForm({ eventId, eventSlug, theme }: RsvpFormProps) {
           </p>
         </div>
 
+        {customRsvpFields.map((field) => (
+          <div key={field.id}>
+            <label htmlFor={`custom_${field.id}`} className="block text-sm font-medium mb-2">
+              {field.label} {field.required && <span className="text-red-500">*</span>}
+            </label>
+            {field.type === 'text' && (
+              <input
+                type="text"
+                id={`custom_${field.id}`}
+                name={`custom_${field.id}`}
+                required={field.required}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${inputClasses}`}
+              />
+            )}
+            {field.type === 'number' && (
+              <input
+                type="number"
+                id={`custom_${field.id}`}
+                name={`custom_${field.id}`}
+                required={field.required}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${inputClasses}`}
+              />
+            )}
+            {field.type === 'checkbox' && (
+              <input
+                type="checkbox"
+                id={`custom_${field.id}`}
+                name={`custom_${field.id}`}
+                className="h-4 w-4 rounded border-gray-300"
+              />
+            )}
+            {field.type === 'select' && (
+              <select
+                id={`custom_${field.id}`}
+                name={`custom_${field.id}`}
+                required={field.required}
+                className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${inputClasses}`}
+              >
+                <option value="">Select...</option>
+                {(field.options || []).map((opt) => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        ))}
+
         <button
           type="submit"
           disabled={isSubmitting}
-          className={`w-full px-6 py-3 rounded-lg font-medium transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ${
-            isDark
-              ? 'bg-white text-black hover:opacity-90'
-              : 'bg-black text-white hover:opacity-90'
-          }`}
+          className={`w-full px-6 py-3 rounded-lg font-medium transition-opacity disabled:opacity-50 disabled:cursor-not-allowed ${themeClasses.button}`}
         >
-          {isSubmitting ? 'Submitting...' : 'Submit RSVP'}
+          {isSubmitting ? 'Sending...' : requestMode ? 'Request to join' : 'Submit RSVP'}
         </button>
       </form>
     </div>
   );
 }
 
-function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme }) {
+function SuccessState({ eventSlug, theme, requestMode = false }: { eventSlug: string; theme: Theme; requestMode?: boolean }) {
   const [copied, setCopied] = useState(false);
-
-  const isDark = theme === 'dark';
+  const themeClasses = getThemeClasses(theme);
   const publicUrl = typeof window !== 'undefined' ? `${window.location.origin}/e/${eventSlug}` : '';
 
   const handleShare = async () => {
@@ -229,28 +283,29 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
 
   return (
     <div className="text-center space-y-4 py-8 border border-dashed border-gray-200 dark:border-gray-800 rounded-xl">
-      <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">All set</p>
-      <h2 className="text-3xl font-bold">Thanks for RSVPing</h2>
-      <p className="opacity-80">We’ve logged your response and sent a confirmation to your email.</p>
+      <p className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">
+        {requestMode ? 'Request sent' : 'All set'}
+      </p>
+      <h2 className="text-3xl font-bold">
+        {requestMode ? 'Your request has been sent' : 'Thanks for RSVPing'}
+      </h2>
+      <p className="opacity-80">
+        {requestMode
+          ? "The organizer will review it and confirm your spot. You'll receive a confirmation if approved."
+          : "We've logged your response and sent a confirmation to your email."}
+      </p>
 
+      {!requestMode && (
       <div className="flex flex-wrap justify-center gap-3 pt-2">
         <button
           onClick={handleAddToCalendar}
-          className={`px-6 py-3 rounded-lg font-medium border ${
-            isDark
-              ? 'border-white text-white hover:bg-white hover:text-gray-900'
-              : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
-          }`}
+          className={`px-6 py-3 rounded-lg font-medium border ${themeClasses.button}`}
         >
           Add to calendar
         </button>
         <button
           onClick={handleShare}
-          className={`px-6 py-3 rounded-lg font-medium border ${
-            isDark
-              ? 'border-white text-white hover:bg-white hover:text-gray-900'
-              : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
-          }`}
+          className={`px-6 py-3 rounded-lg font-medium border ${themeClasses.button}`}
         >
           {copied ? '✓ Link copied' : 'Share event'}
         </button>
@@ -259,16 +314,13 @@ function SuccessState({ eventSlug, theme }: { eventSlug: string; theme: Theme })
             href={whatsappUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className={`inline-flex px-6 py-3 rounded-lg font-medium border ${
-              isDark
-                ? 'border-white text-white hover:bg-white hover:text-gray-900'
-                : 'border-gray-900 text-gray-900 hover:bg-gray-900 hover:text-white'
-            }`}
+            className={`inline-flex px-6 py-3 rounded-lg font-medium border ${themeClasses.button}`}
           >
             Share on WhatsApp
           </a>
         )}
       </div>
+      )}
     </div>
   );
 }

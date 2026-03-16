@@ -1,35 +1,46 @@
 import { supabaseAdmin } from '@/lib/supabase/server';
-import { generateSlug } from '@/lib/utils/slug';
+import { generateSlug, isValidSlug } from '@/lib/utils/slug';
 import { generateAdminSecret } from '@/lib/utils/secrets';
 import type { Event, CreateEventInput, UpdateEventInput } from '@/types/database';
 
 /**
  * Create a new event
- * Generates slug and admin_secret automatically
+ * Generates slug and admin_secret automatically (or uses custom slug if provided and valid)
  */
 export async function createEvent(input: CreateEventInput): Promise<Event> {
-  // Generate unique slug (retry if collision)
-  let slug = generateSlug();
-  let attempts = 0;
-  const maxAttempts = 10;
-
-  while (attempts < maxAttempts) {
+  let slug: string;
+  if (input.slug?.trim() && isValidSlug(input.slug.trim().toLowerCase())) {
+    const customSlug = input.slug.trim().toLowerCase();
     const { data: existing } = await supabaseAdmin
       .from('events')
       .select('id')
-      .eq('slug', slug)
+      .eq('slug', customSlug)
       .single();
+    if (existing) {
+      throw new Error('This URL is already taken. Please choose another.');
+    }
+    slug = customSlug;
+  } else {
+    let attempts = 0;
+    const maxAttempts = 10;
+    slug = generateSlug();
 
-    if (!existing) {
-      break; // Slug is available
+    while (attempts < maxAttempts) {
+      const { data: existing } = await supabaseAdmin
+        .from('events')
+        .select('id')
+        .eq('slug', slug)
+        .single();
+
+      if (!existing) break;
+
+      slug = generateSlug();
+      attempts++;
     }
 
-    slug = generateSlug();
-    attempts++;
-  }
-
-  if (attempts >= maxAttempts) {
-    throw new Error('Failed to generate unique slug after multiple attempts');
+    if (attempts >= maxAttempts) {
+      throw new Error('Failed to generate unique slug after multiple attempts');
+    }
   }
 
   // Generate admin secret
@@ -171,11 +182,45 @@ export async function updateEvent(
   if (input.ends_at !== undefined) updateData.ends_at = input.ends_at ?? null;
   if (input.location_text !== undefined) updateData.location_text = input.location_text;
   if (input.location_url !== undefined) updateData.location_url = input.location_url || null;
-  if (input.theme !== undefined) updateData.theme = input.theme;
+  if (input.theme !== undefined) updateData.theme = input.theme as Event['theme'];
   if (input.notify_on_rsvp !== undefined) updateData.notify_on_rsvp = input.notify_on_rsvp;
   if (input.capacity_limit !== undefined) updateData.capacity_limit = input.capacity_limit ?? null;
   if (input.rsvp_deadline !== undefined) updateData.rsvp_deadline = input.rsvp_deadline ?? null;
   if (input.rsvp_open !== undefined) updateData.rsvp_open = input.rsvp_open;
+  if (input.guest_list_visibility !== undefined) updateData.guest_list_visibility = input.guest_list_visibility;
+  if (input.og_image_url !== undefined) updateData.og_image_url = input.og_image_url ?? null;
+  if (input.page_style !== undefined) updateData.page_style = input.page_style;
+  if (input.cover_image_url !== undefined) updateData.cover_image_url = input.cover_image_url ?? null;
+  if (input.poster_image_url !== undefined) updateData.poster_image_url = input.poster_image_url ?? null;
+  if (input.cover_image_position !== undefined) updateData.cover_image_position = input.cover_image_position;
+  if (input.rsvp_mode !== undefined) updateData.rsvp_mode = input.rsvp_mode;
+  if (input.hide_location_until_approved !== undefined) updateData.hide_location_until_approved = input.hide_location_until_approved;
+  if (input.hide_private_note_until_approved !== undefined) updateData.hide_private_note_until_approved = input.hide_private_note_until_approved;
+  if (input.private_note !== undefined) updateData.private_note = input.private_note ?? null;
+  if (input.custom_rsvp_fields !== undefined) updateData.custom_rsvp_fields = input.custom_rsvp_fields;
+  if (input.custom_share_message !== undefined) updateData.custom_share_message = input.custom_share_message ?? null;
+  if (input.hide_branding_in_share !== undefined) updateData.hide_branding_in_share = input.hide_branding_in_share;
+  if (input.send_reminder_1_day !== undefined) updateData.send_reminder_1_day = input.send_reminder_1_day;
+  if (input.hide_branding !== undefined) updateData.hide_branding = input.hide_branding;
+  if (input.show_organizer_contact !== undefined) updateData.show_organizer_contact = input.show_organizer_contact;
+  if (input.organizer_contact_email !== undefined) updateData.organizer_contact_email = input.organizer_contact_email ?? null;
+  if (input.organizer_contact_phone !== undefined) updateData.organizer_contact_phone = input.organizer_contact_phone ?? null;
+  if (input.organizer_contact_instagram !== undefined) updateData.organizer_contact_instagram = input.organizer_contact_instagram ?? null;
+  if (input.organizer_contact_whatsapp !== undefined) updateData.organizer_contact_whatsapp = input.organizer_contact_whatsapp ?? null;
+  if (input.organizer_contact_text !== undefined) updateData.organizer_contact_text = input.organizer_contact_text ?? null;
+
+  if (input.slug !== undefined) {
+    const { data: existing } = await supabaseAdmin
+      .from('events')
+      .select('id')
+      .eq('slug', input.slug)
+      .neq('id', eventId)
+      .single();
+    if (existing) {
+      throw new Error('This URL is already taken. Please choose another.');
+    }
+    updateData.slug = input.slug;
+  }
 
   const { data, error } = await supabaseAdmin
     .from('events')
@@ -226,6 +271,44 @@ export async function getEventsByOrganizerEmail(email: string): Promise<Event[]>
   }
 
   return (data || []) as Event[];
+}
+
+/**
+ * Get events that need reminder emails (Business only, starting in ~24h)
+ */
+export async function getEventsForReminders(): Promise<Event[]> {
+  const now = new Date();
+  const in23h = new Date(now.getTime() + 23 * 60 * 60 * 1000).toISOString();
+  const in25h = new Date(now.getTime() + 25 * 60 * 60 * 1000).toISOString();
+
+  const { data, error } = await supabaseAdmin
+    .from('events')
+    .select('*')
+    .eq('plan_tier', 'business')
+    .eq('send_reminder_1_day', true)
+    .is('reminder_sent_at', null)
+    .gte('starts_at', in23h)
+    .lte('starts_at', in25h);
+
+  if (error) {
+    throw new Error(`Failed to fetch events for reminders: ${error.message}`);
+  }
+
+  return (data || []) as Event[];
+}
+
+/**
+ * Mark reminder as sent for an event
+ */
+export async function markReminderSent(eventId: string): Promise<void> {
+  const { error } = await supabaseAdmin
+    .from('events')
+    .update({ reminder_sent_at: new Date().toISOString() })
+    .eq('id', eventId);
+
+  if (error) {
+    throw new Error(`Failed to mark reminder sent: ${error.message}`);
+  }
 }
 
 /**

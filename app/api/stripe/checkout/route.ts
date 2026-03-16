@@ -19,7 +19,8 @@ export async function POST(request: NextRequest) {
     }
 
     const { tier, eventId, adminSecret } = parsed.data;
-    const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://invy.rsvp';
+    const url = request.nextUrl ?? new URL(request.url);
+    const requestOrigin = url.origin;
 
     if (tier === 'organizer_hub') {
       const user = await getUserFromSession();
@@ -30,8 +31,7 @@ export async function POST(request: NextRequest) {
       const { url } = await createHubCheckoutSession({
         userId: user.id,
         userEmail: user.email,
-        successUrl: `${APP_URL}/dashboard/billing?success=true`,
-        cancelUrl: `${APP_URL}/dashboard/billing?canceled=true`,
+        requestOrigin,
       });
 
       return NextResponse.json({ url });
@@ -51,8 +51,7 @@ export async function POST(request: NextRequest) {
         eventId,
         tier,
         adminSecret,
-        successUrl: `${APP_URL}/manage/${adminSecret}?upgraded=true`,
-        cancelUrl: `${APP_URL}/manage/${adminSecret}?canceled=true`,
+        requestOrigin,
       });
 
       return NextResponse.json({ url });
@@ -62,7 +61,7 @@ export async function POST(request: NextRequest) {
   } catch (err) {
     console.error('Stripe checkout error:', err);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Checkout failed' },
+      { error: 'Checkout failed. Please try again.' },
       { status: 500 }
     );
   }

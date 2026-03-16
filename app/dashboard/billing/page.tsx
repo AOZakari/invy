@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { getUserFromSession } from '@/lib/auth/user';
 import { redirect } from 'next/navigation';
 import BillingPlans from '@/components/BillingPlans';
@@ -14,7 +15,10 @@ export default async function BillingPage() {
       <div>
         <h1 className="text-3xl font-bold mb-2">Billing & Plans</h1>
         <p className="text-gray-600 dark:text-gray-400">
-          Upgrade when you need more. Credit card and PayPal accepted.
+          Upgrade when you need more. Credit card and PayPal accepted.{' '}
+          <Link href="/pricing" className="text-gray-900 dark:text-white underline hover:no-underline">
+            See all plans
+          </Link>
         </p>
       </div>
 

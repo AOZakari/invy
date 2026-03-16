@@ -4,6 +4,8 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@/types/database';
 
+const SUPER_ADMIN_EMAIL = 'zak@aozakari.com';
+
 interface UserActionsProps {
   user: User;
 }
@@ -11,6 +13,7 @@ interface UserActionsProps {
 export default function UserActions({ user }: UserActionsProps) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   async function handleUpdatePlan(planTier: 'free' | 'pro' | 'business') {
     if (user.plan_tier === planTier) return;
@@ -60,6 +63,35 @@ export default function UserActions({ user }: UserActionsProps) {
     }
   }
 
+  async function handleDelete() {
+    if (
+      !confirm(
+        `Permanently delete ${user.email}? Their events will become unclaimed. This cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/admin/users/${user.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to delete user');
+      }
+
+      router.refresh();
+    } catch (err) {
+      console.error('Failed to delete user:', err);
+      alert(err instanceof Error ? err.message : 'Failed to delete user');
+    } finally {
+      setIsDeleting(false);
+    }
+  }
+
   return (
     <div className="flex gap-2">
       <select
@@ -72,7 +104,7 @@ export default function UserActions({ user }: UserActionsProps) {
         <option value="pro">Pro</option>
         <option value="business">Business</option>
       </select>
-      {user.email !== 'zak@aozakari.com' && (
+      {user.email !== SUPER_ADMIN_EMAIL && (
         <select
           value={user.role}
           onChange={(e) => handleUpdateRole(e.target.value as 'user' | 'superadmin')}
@@ -82,6 +114,16 @@ export default function UserActions({ user }: UserActionsProps) {
           <option value="user">User</option>
           <option value="superadmin">Super Admin</option>
         </select>
+      )}
+      {user.email !== SUPER_ADMIN_EMAIL && (
+        <button
+          type="button"
+          onClick={handleDelete}
+          disabled={isDeleting}
+          className="text-xs px-2 py-1 border border-red-300 dark:border-red-600 rounded bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 disabled:opacity-50"
+        >
+          {isDeleting ? '…' : 'Delete'}
+        </button>
       )}
     </div>
   );

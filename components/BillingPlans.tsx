@@ -49,7 +49,7 @@ export default function BillingPlans({ user }: BillingPlansProps) {
     }
   }
 
-  const hasHub = user.plan_tier === 'pro' || user.plan_tier === 'business';
+  const hasHub = user.plan_tier === 'business';
   const hasStripeCustomer = !!user.stripe_customer_id;
 
   return (
@@ -62,11 +62,11 @@ export default function BillingPlans({ user }: BillingPlansProps) {
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
-          <h3 className="text-lg font-semibold mb-2">{MVP_PRICING.keep.label}</h3>
-          <p className="text-3xl font-bold mb-1">€{MVP_PRICING.keep.price}</p>
+          <h3 className="text-lg font-semibold mb-2">{MVP_PRICING.plus.label}</h3>
+          <p className="text-3xl font-bold mb-1">€{MVP_PRICING.plus.price}</p>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">per event</p>
           <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">
-            Keep your event live longer. One-off.
+            Keep it live, export guest list, add one custom question. One-off.
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400">
             Upgrade from the event manage page.
@@ -114,7 +114,7 @@ export default function BillingPlans({ user }: BillingPlansProps) {
 
       <div className="bg-gray-50 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-800 rounded-lg p-4">
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          Keep and Pro Event are one-time upgrades per event — use the upgrade section on each event&apos;s manage page. Organizer Hub is a monthly subscription. Your data is kept only as long as needed; free events expire 7 days after the event date.
+          Plus and Pro Event are one-time upgrades per event — use the upgrade section on each event&apos;s manage page. Organizer Hub is a monthly subscription. Free event pages expire 7 days after the event date.
         </p>
       </div>
     </div>

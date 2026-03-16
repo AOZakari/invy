@@ -13,10 +13,10 @@ export function generateSlug(): string {
 }
 
 /**
- * Validate slug format (alphanumeric, lowercase, 3-50 chars)
- * For future Pro feature: allow custom slugs
+ * Validate slug format (alphanumeric, lowercase, hyphens, 3-50 chars)
+ * Used for custom slugs (Pro+)
  */
 export function isValidSlug(slug: string): boolean {
-  return /^[a-z0-9]{3,50}$/.test(slug);
+  return /^[a-z0-9][a-z0-9-]{2,49}$/.test(slug) && !slug.endsWith('-');
 }
 

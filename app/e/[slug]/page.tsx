@@ -1,8 +1,12 @@
+import { cookies } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { getEventBySlug } from '@/lib/db/events';
-import { getRsvpStatsForEvent } from '@/lib/db/rsvps';
+import { getRsvpStatsForEvent, getRsvpsForEvent } from '@/lib/db/rsvps';
 import RsvpForm from '@/components/RsvpForm';
 import EventPageActions from '@/components/EventPageActions';
+import PublicGuestList from '@/components/PublicGuestList';
+import EventPageContent from '@/components/EventPageContent';
+import RecordPageView from '@/components/RecordPageView';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -20,18 +24,14 @@ function formatDate(dateString: string): string {
   });
 }
 
-function formatTime(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-/** Event is expired 7 days after it starts (free tier). Pro/business tiers stay live. */
-function isEventExpired(startsAt: string, planTier: string | null | undefined): boolean {
-  if (planTier === 'pro' || planTier === 'business') {
-    return false; // Keep and Pro Event stay live
+/** Event is expired 7 days after it starts (free tier). Pro/business/keep_live stay live. */
+function isEventExpired(
+  startsAt: string,
+  planTier: string | null | undefined,
+  keepLive?: boolean
+): boolean {
+  if (planTier === 'pro' || planTier === 'business' || keepLive) {
+    return false;
   }
   const start = new Date(startsAt).getTime();
   const expiry = start + 7 * 24 * 60 * 60 * 1000;
@@ -48,7 +48,8 @@ export async function generateMetadata({ params }: PageProps) {
   const description =
     event.description?.slice(0, 160) ||
     `${event.title} — ${formatDate(event.starts_at)} at ${event.location_text}`;
-  const ogImage = `${APP_URL}/og-image.svg`;
+  const ogImage = event.og_image_url || event.cover_image_url || `${APP_URL}/og-image.svg`;
+  const siteName = event.hide_branding_in_share ? event.title : 'INVY';
   return {
     title: event.title,
     description,
@@ -56,7 +57,7 @@ export async function generateMetadata({ params }: PageProps) {
       title: event.title,
       description,
       url,
-      siteName: 'INVY',
+      siteName,
       images: [{ url: ogImage, width: 1200, height: 630 }],
     },
     twitter: {
@@ -77,93 +78,61 @@ export default async function EventPage({ params }: PageProps) {
   }
 
   const rsvpOpen = event.rsvp_open ?? true;
-  const expired = isEventExpired(event.starts_at, event.plan_tier);
+  const expired = isEventExpired(event.starts_at, event.plan_tier, event.keep_live);
   const canRsvp = rsvpOpen && !expired;
 
   let spotsLeft: number | null = null;
-  if (event.capacity_limit != null && event.capacity_limit > 0) {
+  if (
+    (event.plan_tier === 'pro' || event.plan_tier === 'business') &&
+    event.capacity_limit != null &&
+    event.capacity_limit > 0
+  ) {
     const stats = await getRsvpStatsForEvent(event.id);
-    const goingCount = stats.yes + stats.maybe; // approximate; yes + plus_ones would be more accurate
     const estimated = stats.estimatedGuests;
     spotsLeft = Math.max(0, event.capacity_limit - estimated);
   }
 
-  const isDark = event.theme === 'dark';
-  const themeClasses = isDark
-    ? 'bg-gray-950 text-gray-100'
-    : 'bg-white text-gray-900';
+  const theme = (event.theme || 'light') as 'light' | 'dark' | 'ocean' | 'forest' | 'sunset' | 'midnight' | 'rose' | 'lavender';
+
+  const visibility = event.guest_list_visibility || 'host_only';
+  const cookieStore = await cookies();
+  const rsvpCookie = cookieStore.get('invy_rsvp')?.value?.split(',') ?? [];
+  const approvedCookie = cookieStore.get('invy_approved')?.value?.split(',') ?? [];
+  const approvedEventIds = new Set(approvedCookie.filter(Boolean));
+  const showGuestList =
+    visibility === 'public' || (visibility === 'attendees_only' && rsvpCookie.includes(event.id));
+  const guestListRsvps = showGuestList ? await getRsvpsForEvent(event.id) : [];
 
   return (
-    <main className={`min-h-screen ${themeClasses}`}>
-      <div className="max-w-2xl mx-auto px-4 py-12">
-        <div className="space-y-6 mb-8">
-          <div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">{event.title}</h1>
-            {event.description && (
-              <p className="text-lg opacity-80 whitespace-pre-line">{event.description}</p>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Date</p>
-              <div className="font-medium">{formatDate(event.starts_at)}</div>
-              <div className="text-sm opacity-70">
-                {formatTime(event.starts_at)}
-                {event.ends_at && ` – ${formatTime(event.ends_at)}`}
-              </div>
-            </div>
-
-            <div>
-              <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Location</p>
-              <div className="font-medium">{event.location_text}</div>
-              {event.location_url && (
-                <a
-                  href={event.location_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm opacity-70 hover:opacity-100 underline"
-                >
-                  View on map
-                </a>
-              )}
-            </div>
-
-            {spotsLeft !== null && (
-              <div>
-                <p className="text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">Spots</p>
-                <div className="font-medium">
-                  {spotsLeft === 0 ? 'Fully booked' : `${spotsLeft} spot${spotsLeft === 1 ? '' : 's'} left`}
-                </div>
-              </div>
-            )}
-          </div>
-
-          <EventPageActions
-            eventSlug={slug}
-            eventTitle={event.title}
-            isDark={isDark}
-          />
-        </div>
-
-        {expired ? (
-          <div className="py-8 px-4 rounded-xl border border-gray-200 dark:border-gray-800 text-center opacity-80">
-            <p className="font-medium">This event has ended.</p>
-            <p className="text-sm mt-1">RSVPs are no longer accepted.</p>
-          </div>
-        ) : !rsvpOpen ? (
-          <div className="py-8 px-4 rounded-xl border border-gray-200 dark:border-gray-800 text-center opacity-80">
-            <p className="font-medium">RSVPs are closed.</p>
-            <p className="text-sm mt-1">The organizer is no longer accepting responses.</p>
-          </div>
-        ) : spotsLeft === 0 ? (
-          <div className="py-8 px-4 rounded-xl border border-gray-200 dark:border-gray-800 text-center opacity-80">
-            <p className="font-medium">This event is fully booked.</p>
-          </div>
-        ) : (
-          <RsvpForm eventId={event.id} eventSlug={slug} theme={event.theme} />
-        )}
-      </div>
-    </main>
+    <>
+      <RecordPageView eventId={event.id} />
+      <EventPageContent
+        event={{
+          ...event,
+          page_style: (event as any).page_style || 'modern',
+          cover_image_url: (event as any).cover_image_url ?? null,
+          poster_image_url: (event as any).poster_image_url ?? null,
+          cover_image_position: (event as any).cover_image_position || 'center',
+          rsvp_mode: (event as any).rsvp_mode || 'instant',
+          hide_location_until_approved: (event as any).hide_location_until_approved ?? false,
+          hide_private_note_until_approved: (event as any).hide_private_note_until_approved ?? false,
+          private_note: (event as any).private_note ?? null,
+          show_organizer_contact: (event as any).show_organizer_contact ?? false,
+          organizer_contact_email: (event as any).organizer_contact_email ?? null,
+          organizer_contact_phone: (event as any).organizer_contact_phone ?? null,
+          organizer_contact_instagram: (event as any).organizer_contact_instagram ?? null,
+          organizer_contact_whatsapp: (event as any).organizer_contact_whatsapp ?? null,
+          organizer_contact_text: (event as any).organizer_contact_text ?? null,
+        }}
+        theme={theme}
+        canRsvp={canRsvp}
+        rsvpOpen={rsvpOpen}
+        expired={expired}
+        spotsLeft={spotsLeft}
+        guestListRsvps={guestListRsvps}
+        showGuestList={showGuestList}
+        isApproved={approvedEventIds.has(event.id)}
+      />
+    </>
   );
 }

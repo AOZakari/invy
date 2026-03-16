@@ -31,6 +31,8 @@ export default function SignupPage() {
 
       if (data.user) {
         if (data.session) {
+          // Brief delay so session cookies are fully written before redirect
+          await new Promise((r) => setTimeout(r, 100));
           window.location.href = '/dashboard';
           return;
         } else {
@@ -65,9 +67,6 @@ export default function SignupPage() {
             >
               Go to sign in
             </Link>
-            <p className="text-xs text-gray-500 dark:text-gray-500 pt-4 border-t border-gray-200 dark:border-gray-800">
-              Not getting the email? Supabase may have confirmation on but no SMTP set. In Supabase Dashboard → Authentication → Providers → Email, turn <strong>off</strong> &quot;Confirm email&quot; so you can sign up without confirmation, then try again.
-            </p>
           </div>
         </div>
       </main>

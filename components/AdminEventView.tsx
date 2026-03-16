@@ -1,13 +1,105 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import type { Event, RSVP } from '@/types/database';
+import type { Event, RSVP, CustomRsvpField, User } from '@/types/database';
 import type { RsvpStats } from '@/lib/db/rsvps';
 import { MVP_PRICING } from '@/types/database';
+import { canUseFeature, getEffectiveTier } from '@/lib/permissions/capabilities';
+import { THEME_OPTIONS, FREE_THEMES } from '@/lib/utils/themes';
 import RsvpList from './RsvpList';
+import RsvpListWithApproval from './RsvpListWithApproval';
 import EventStats from './EventStats';
 import CopyButton from './CopyButton';
+import AnalyticsWidget from './AnalyticsWidget';
+
+function ImageUploadField({
+  label,
+  imageUrl,
+  eventId,
+  adminSecret,
+  type,
+  onUpdate,
+}: {
+  label: string;
+  imageUrl: string | null | undefined;
+  eventId: string;
+  adminSecret: string;
+  type: 'cover' | 'poster';
+  onUpdate: (url: string | null) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+
+  async function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('admin_secret', adminSecret);
+      formData.set('type', type);
+      const res = await fetch(`/api/manage/events/${eventId}/upload-image`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Upload failed');
+      onUpdate(data.url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
+  }
+
+  async function handleRemove() {
+    setUploadError(null);
+    try {
+      const res = await fetch(`/api/manage/events/${eventId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          admin_secret: adminSecret,
+          [type === 'cover' ? 'cover_image_url' : 'poster_image_url']: null,
+        }),
+      });
+      if (!res.ok) throw new Error('Failed to remove');
+      onUpdate(null);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : 'Failed to remove');
+    }
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-medium mb-2">{label}</label>
+      {imageUrl ? (
+        <div className="space-y-2">
+          <img src={imageUrl} alt="" className="max-h-32 rounded-lg object-cover border border-gray-200 dark:border-gray-700" />
+          <div className="flex gap-2">
+            <label className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 disabled:opacity-50">
+              {uploading ? 'Uploading...' : 'Change'}
+              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} disabled={uploading} className="hidden" />
+            </label>
+            <button type="button" onClick={handleRemove} className="px-3 py-1.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg">
+              Remove
+            </button>
+          </div>
+        </div>
+      ) : (
+        <label className="block px-4 py-3 border border-dashed border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 text-center text-sm text-gray-500 dark:text-gray-400">
+          {uploading ? 'Uploading...' : 'Upload image (JPEG, PNG, WebP, max 5MB)'}
+          <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleFile} disabled={uploading} className="hidden" />
+        </label>
+      )}
+      {uploadError && <p className="text-sm text-red-600 dark:text-red-400 mt-1">{uploadError}</p>}
+    </div>
+  );
+}
 
 function UpgradeButton({
   tier,
@@ -55,6 +147,8 @@ interface AdminEventViewProps {
   rsvps: RSVP[];
   stats: RsvpStats;
   adminSecret: string;
+  /** When provided (e.g. from dashboard), user tier grants Pro/Business on all their events */
+  user?: User | null;
 }
 
 export default function AdminEventView({
@@ -62,6 +156,7 @@ export default function AdminEventView({
   rsvps: initialRsvps,
   stats: initialStats,
   adminSecret,
+  user = null,
 }: AdminEventViewProps) {
   const [event, setEvent] = useState(initialEvent);
   const [isEditing, setIsEditing] = useState(false);
@@ -69,6 +164,13 @@ export default function AdminEventView({
   const [error, setError] = useState<string | null>(null);
   const [rsvps, setRsvps] = useState(initialRsvps);
   const [stats, setStats] = useState(initialStats);
+  const [editedCustomFields, setEditedCustomFields] = useState<CustomRsvpField[]>([]);
+
+  useEffect(() => {
+    if (isEditing) {
+      setEditedCustomFields(event.custom_rsvp_fields || []);
+    }
+  }, [isEditing, event.custom_rsvp_fields]);
 
   const publicUrl = typeof window !== 'undefined' ? `${window.location.origin}/e/${event.slug}` : '';
   const manageUrl = typeof window !== 'undefined' ? `${window.location.origin}/manage/${adminSecret}` : '';
@@ -126,14 +228,22 @@ export default function AdminEventView({
   }
 
   function handleExportCsv() {
-    const headers = ['Name', 'Email', 'Status', '+1', 'Date'];
-    const rows = rsvps.map((r) => [
-      (r.name || '').replace(/"/g, '""'),
-      r.contact_info.replace(/"/g, '""'),
-      r.status,
-      r.plus_one,
-      new Date(r.created_at).toLocaleDateString(),
-    ]);
+    const customHeaders = (event.custom_rsvp_fields || []).map((f) => f.label);
+    const headers = ['Name', 'Email', 'Status', '+1', ...customHeaders, 'Date'];
+    const rows = rsvps.map((r) => {
+      const base = [
+        (r.name || '').replace(/"/g, '""'),
+        r.contact_info.replace(/"/g, '""'),
+        r.status,
+        r.plus_one,
+      ];
+      const customVals = (event.custom_rsvp_fields || []).map((f) => {
+        const v = r.custom_field_values?.[f.id];
+        const s = v === undefined || v === null ? '' : typeof v === 'boolean' ? (v ? 'Yes' : 'No') : String(v);
+        return s.replace(/"/g, '""');
+      });
+      return [...base, ...customVals, new Date(r.created_at).toLocaleDateString()];
+    });
     const csv = [headers.join(','), ...rows.map((row) => row.map((c) => `"${c}"`).join(','))].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -150,7 +260,6 @@ export default function AdminEventView({
 
     const date = formData.get('date') as string;
     const time = formData.get('time') as string;
-    const startsAt = date && time ? new Date(`${date}T${time}`).toISOString() : undefined;
 
     const updateData: any = {
       title: formData.get('title') as string,
@@ -161,8 +270,87 @@ export default function AdminEventView({
       notify_on_rsvp: formData.get('notify_on_rsvp') === 'on',
     };
 
-    if (startsAt) {
-      updateData.starts_at = startsAt;
+    if (date) updateData.date = date;
+    if (time) updateData.time = time;
+
+    if (canUseFeature(user ?? null, event, 'capacity_limits')) {
+      const cap = formData.get('capacity_limit') as string;
+      updateData.capacity_limit = cap?.trim() && Number(cap) > 0 ? Number(cap) : null;
+    }
+
+    if (canUseFeature(user ?? null, event, 'custom_slug')) {
+      const slugVal = formData.get('slug') as string;
+      if (slugVal?.trim()) updateData.slug = slugVal.trim().toLowerCase();
+    }
+
+    if (canUseFeature(user ?? null, event, 'link_preview_cards')) {
+      const ogVal = formData.get('og_image_url') as string;
+      updateData.og_image_url = ogVal?.trim() || null;
+    }
+
+    if (canUseFeature(user ?? null, event, 'page_style')) {
+      const ps = formData.get('page_style') as string;
+      if (['classic', 'modern', 'bold'].includes(ps)) updateData.page_style = ps as any;
+    }
+
+    if (canUseFeature(user ?? null, event, 'cover_image')) {
+      const pos = formData.get('cover_image_position') as string;
+      if (['top', 'center', 'bottom'].includes(pos)) updateData.cover_image_position = pos as any;
+    }
+
+    if (canUseFeature(user ?? null, event, 'guest_list_controls')) {
+      const vis = formData.get('guest_list_visibility') as string;
+      if (['host_only', 'public', 'attendees_only'].includes(vis)) updateData.guest_list_visibility = vis;
+    }
+
+    if (canUseFeature(user ?? null, event, 'share_controls')) {
+      const shareMsg = formData.get('custom_share_message') as string;
+      updateData.custom_share_message = shareMsg?.trim() || null;
+      updateData.hide_branding_in_share = formData.get('hide_branding_in_share') === 'on';
+    }
+
+    if (canUseFeature(user ?? null, event, 'email_reminders')) {
+      updateData.send_reminder_1_day = formData.get('send_reminder_1_day') === 'on';
+    }
+
+    if (canUseFeature(user ?? null, event, 'white_label')) {
+      updateData.hide_branding = formData.get('hide_branding') === 'on';
+    }
+
+    if (canUseFeature(user ?? null, event, 'request_to_attend')) {
+      const mode = formData.get('rsvp_mode') as string;
+      if (['instant', 'request'].includes(mode)) updateData.rsvp_mode = mode as any;
+      updateData.hide_location_until_approved = formData.get('hide_location_until_approved') === 'on';
+      updateData.hide_private_note_until_approved = formData.get('hide_private_note_until_approved') === 'on';
+      const pn = formData.get('private_note') as string;
+      updateData.private_note = pn?.trim() || null;
+    }
+
+    if (canUseFeature(user ?? null, event, 'organizer_contact')) {
+      updateData.show_organizer_contact = formData.get('show_organizer_contact') === 'on';
+      const oce = formData.get('organizer_contact_email') as string;
+      updateData.organizer_contact_email = oce?.trim() || null;
+      const ocp = formData.get('organizer_contact_phone') as string;
+      updateData.organizer_contact_phone = ocp?.trim() || null;
+      const oci = formData.get('organizer_contact_instagram') as string;
+      updateData.organizer_contact_instagram = oci?.trim() || null;
+      const ocw = formData.get('organizer_contact_whatsapp') as string;
+      updateData.organizer_contact_whatsapp = ocw?.trim() || null;
+      const oct = formData.get('organizer_contact_text') as string;
+      updateData.organizer_contact_text = oct?.trim() || null;
+    }
+
+    if (canUseFeature(user ?? null, event, 'custom_rsvp_fields')) {
+      const valid = editedCustomFields.filter(
+        (f) => f.label?.trim() && ['text', 'select', 'checkbox', 'number'].includes(f.type)
+      );
+      updateData.custom_rsvp_fields = valid.map((f) => ({
+        id: f.id,
+        label: f.label.trim(),
+        type: f.type,
+        required: f.required ?? false,
+        options: f.type === 'select' && f.options?.length ? f.options : undefined,
+      }));
     }
 
     // Remove empty strings
@@ -245,6 +433,10 @@ export default function AdminEventView({
           </div>
         </div>
 
+        {canUseFeature(user ?? null, event, 'analytics') && (
+          <AnalyticsWidget eventId={event.id} adminSecret={adminSecret} />
+        )}
+
         {/* Stats + RSVP toggle + actions */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
           <EventStats stats={stats} />
@@ -268,13 +460,32 @@ export default function AdminEventView({
               </button>
               <span className="font-medium">{event.rsvp_open ?? true ? 'Open' : 'Closed'}</span>
             </label>
-            <button
-              type="button"
-              onClick={handleExportCsv}
-              className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800"
-            >
-              Export CSV
-            </button>
+            {canUseFeature(user ?? null, event, 'csv_export') ? (
+              <button
+                type="button"
+                onClick={handleExportCsv}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800"
+              >
+                Export CSV
+              </button>
+            ) : (
+              <span className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400">
+                Upgrade to export CSV
+              </span>
+            )}
+            {canUseFeature(user ?? null, event, 'qr_code') ? (
+              <a
+                href={`/api/events/${event.slug}/qr`}
+                download={`invy-${event.slug}-qr.png`}
+                className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium hover:bg-gray-100 dark:hover:bg-gray-800 inline-block"
+              >
+                Download QR code
+              </a>
+            ) : (
+              <span className="px-4 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-500 dark:text-gray-400">
+                Upgrade for QR code
+              </span>
+            )}
             <button
               type="button"
               onClick={handleDuplicate}
@@ -322,6 +533,50 @@ export default function AdminEventView({
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                 />
               </div>
+
+              {canUseFeature(user ?? null, event, 'link_preview_cards') ? (
+                <div>
+                  <label htmlFor="og_image_url" className="block text-sm font-medium mb-2">Share image (OG)</label>
+                  <input
+                    type="url"
+                    name="og_image_url"
+                    id="og_image_url"
+                    defaultValue={event.og_image_url || ''}
+                    placeholder="https://..."
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">URL for social share preview (1200×630 recommended)</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Share image</label>
+                  <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                    Upgrade for custom share image
+                  </div>
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'custom_slug') ? (
+                <div>
+                  <label htmlFor="slug" className="block text-sm font-medium mb-2">Custom URL</label>
+                  <input
+                    type="text"
+                    name="slug"
+                    id="slug"
+                    defaultValue={event.slug}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    placeholder="summer-bbq-2024"
+                  />
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">invy.rsvp/e/your-slug</p>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Custom URL</label>
+                  <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                    Upgrade for custom URL
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -384,10 +639,352 @@ export default function AdminEventView({
                   defaultValue={event.theme}
                   className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
                 >
-                  <option value="light">Light</option>
-                  <option value="dark">Dark</option>
+                  {(canUseFeature(user ?? null, event, 'advanced_themes') ? THEME_OPTIONS : FREE_THEMES).map((t) => (
+                    <option key={t.value} value={t.value}>{t.label}</option>
+                  ))}
                 </select>
               </div>
+
+              {canUseFeature(user ?? null, event, 'page_style') && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Page style</label>
+                  <div className="flex gap-2">
+                    {(['classic', 'modern', 'bold'] as const).map((s) => (
+                      <label key={s} className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 has-[:checked]:border-gray-900 dark:has-[:checked]:border-white has-[:checked]:bg-gray-100 dark:has-[:checked]:bg-gray-700">
+                        <input type="radio" name="page_style" value={s} defaultChecked={(event as any).page_style === s || (!(event as any).page_style && s === 'modern')} className="sr-only" />
+                        <span className="text-sm capitalize">{s}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Classic: elegant. Modern: clean. Bold: expressive.</p>
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'cover_image') && (
+                <ImageUploadField
+                  label="Cover image"
+                  imageUrl={(event as any).cover_image_url}
+                  eventId={event.id}
+                  adminSecret={adminSecret}
+                  type="cover"
+                  onUpdate={(url) => setEvent((e) => ({ ...e, cover_image_url: url }))}
+                />
+              )}
+
+              {canUseFeature(user ?? null, event, 'cover_image') && (event as any).cover_image_url && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Cover position</label>
+                  <select
+                    name="cover_image_position"
+                    defaultValue={(event as any).cover_image_position || 'center'}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                  >
+                    <option value="top">Top</option>
+                    <option value="center">Center</option>
+                    <option value="bottom">Bottom</option>
+                  </select>
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'poster_image') && (
+                <ImageUploadField
+                  label="Poster / card image"
+                  imageUrl={(event as any).poster_image_url}
+                  eventId={event.id}
+                  adminSecret={adminSecret}
+                  type="poster"
+                  onUpdate={(url) => setEvent((e) => ({ ...e, poster_image_url: url }))}
+                />
+              )}
+
+              {canUseFeature(user ?? null, event, 'capacity_limits') && (
+                <div>
+                  <label htmlFor="capacity_limit" className="block text-sm font-medium mb-2">Max capacity</label>
+                  <input
+                    type="number"
+                    name="capacity_limit"
+                    id="capacity_limit"
+                    min={1}
+                    max={10000}
+                    placeholder="Optional"
+                    defaultValue={event.capacity_limit ?? ''}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                  />
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'guest_list_controls') && (
+                <div>
+                  <label htmlFor="guest_list_visibility" className="block text-sm font-medium mb-2">Guest list visibility</label>
+                  <select
+                    name="guest_list_visibility"
+                    id="guest_list_visibility"
+                    defaultValue={event.guest_list_visibility || 'host_only'}
+                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                  >
+                    <option value="host_only">Only you (host)</option>
+                    <option value="public">Everyone can see</option>
+                    <option value="attendees_only">Only attendees can see</option>
+                  </select>
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'request_to_attend') && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">RSVP mode</label>
+                    <div className="flex gap-2">
+                      <label className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 has-[:checked]:border-gray-900 dark:has-[:checked]:border-white has-[:checked]:bg-gray-100 dark:has-[:checked]:bg-gray-700">
+                        <input type="radio" name="rsvp_mode" value="instant" defaultChecked={((event as any).rsvp_mode || 'instant') === 'instant'} className="sr-only" />
+                        <span className="text-sm">Instant</span>
+                      </label>
+                      <label className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 has-[:checked]:border-gray-900 dark:has-[:checked]:border-white has-[:checked]:bg-gray-100 dark:has-[:checked]:bg-gray-700">
+                        <input type="radio" name="rsvp_mode" value="request" defaultChecked={(event as any).rsvp_mode === 'request'} className="sr-only" />
+                        <span className="text-sm">Request</span>
+                      </label>
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Instant: guests confirmed immediately. Request: you approve who gets in.</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="hide_location_until_approved" defaultChecked={(event as any).hide_location_until_approved} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600" />
+                    Hide exact location until approved
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" name="hide_private_note_until_approved" defaultChecked={(event as any).hide_private_note_until_approved} className="h-4 w-4 rounded border-gray-300 dark:border-gray-600" />
+                    Hide private note until approved
+                  </label>
+                  <div>
+                    <label htmlFor="private_note" className="block text-sm font-medium mb-2">Private note (for approved guests)</label>
+                    <textarea name="private_note" id="private_note" rows={3} placeholder="Access code, final instructions, etc." defaultValue={(event as any).private_note || ''} className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700" />
+                  </div>
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'email_reminders') && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="send_reminder_1_day"
+                    defaultChecked={event.send_reminder_1_day}
+                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
+                  />
+                  Send reminder email 1 day before event
+                </label>
+              )}
+
+              {canUseFeature(user ?? null, event, 'white_label') && (
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    name="hide_branding"
+                    defaultChecked={event.hide_branding}
+                    className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
+                  />
+                  Hide &quot;Powered by INVY&quot; on event page and in emails
+                </label>
+              )}
+
+              {canUseFeature(user ?? null, event, 'share_controls') && (
+                <div className="space-y-3">
+                  <div>
+                    <label htmlFor="custom_share_message" className="block text-sm font-medium mb-2">Custom share message</label>
+                    <textarea
+                      name="custom_share_message"
+                      id="custom_share_message"
+                      rows={2}
+                      placeholder="e.g. You're invited to my birthday party!"
+                      defaultValue={event.custom_share_message || ''}
+                      className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Used when sharing via native share (e.g. on mobile)</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="hide_branding_in_share"
+                      defaultChecked={event.hide_branding_in_share}
+                      className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
+                    />
+                    Hide INVY branding in share preview
+                  </label>
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'organizer_contact') ? (
+                <div className="space-y-3">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      name="show_organizer_contact"
+                      defaultChecked={(event as any).show_organizer_contact}
+                      className="h-4 w-4 rounded border-gray-300 dark:border-gray-600"
+                    />
+                    Show organizer contact info on event page
+                  </label>
+                  <div className="pl-6 space-y-2 border-l-2 border-gray-200 dark:border-gray-700">
+                    <input
+                      type="email"
+                      name="organizer_contact_email"
+                      placeholder="Contact email (optional)"
+                      defaultValue={(event as any).organizer_contact_email || ''}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                    <input
+                      type="text"
+                      name="organizer_contact_phone"
+                      placeholder="Phone (optional)"
+                      defaultValue={(event as any).organizer_contact_phone || ''}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                    <input
+                      type="text"
+                      name="organizer_contact_instagram"
+                      placeholder="Instagram @handle or URL (optional)"
+                      defaultValue={(event as any).organizer_contact_instagram || ''}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                    <input
+                      type="text"
+                      name="organizer_contact_whatsapp"
+                      placeholder="WhatsApp number or link (optional)"
+                      defaultValue={(event as any).organizer_contact_whatsapp || ''}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                    <input
+                      type="text"
+                      name="organizer_contact_text"
+                      placeholder="e.g. Questions? Message the organizer. (optional)"
+                      defaultValue={(event as any).organizer_contact_text || ''}
+                      maxLength={200}
+                      className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Organizer contact section</label>
+                  <div className="px-4 py-2 text-sm text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800/50">
+                    Upgrade to Pro to add organizer contact details to your event page.
+                  </div>
+                </div>
+              )}
+
+              {canUseFeature(user ?? null, event, 'custom_rsvp_fields') && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">
+                    Custom RSVP {event.keep_live ? 'question' : 'fields'}
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                    {event.keep_live
+                      ? 'Add one extra question to your RSVP form (e.g. dietary preferences).'
+                      : 'Add extra questions to your RSVP form (e.g. dietary preferences, t-shirt size).'}
+                  </p>
+                  <div className="space-y-3">
+                    {editedCustomFields.map((field) => (
+                      <div
+                        key={field.id}
+                        className="flex flex-wrap gap-2 items-start p-3 border border-gray-200 dark:border-gray-700 rounded-lg"
+                      >
+                        <input
+                          type="text"
+                          placeholder="Label"
+                          value={field.label}
+                          onChange={(e) =>
+                            setEditedCustomFields((prev) =>
+                              prev.map((p) => (p.id === field.id ? { ...p, label: e.target.value } : p))
+                            )
+                          }
+                          className="flex-1 min-w-[120px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm"
+                        />
+                        <select
+                          value={field.type}
+                          onChange={(e) =>
+                            setEditedCustomFields((prev) =>
+                              prev.map((p) =>
+                                p.id === field.id
+                                  ? { ...p, type: e.target.value as CustomRsvpField['type'] }
+                                  : p
+                              )
+                            )
+                          }
+                          className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm"
+                        >
+                          <option value="text">Text</option>
+                          <option value="number">Number</option>
+                          <option value="checkbox">Checkbox</option>
+                          <option value="select">Select</option>
+                        </select>
+                        <label className="flex items-center gap-1 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={field.required ?? false}
+                            onChange={(e) =>
+                              setEditedCustomFields((prev) =>
+                                prev.map((p) =>
+                                  p.id === field.id ? { ...p, required: e.target.checked } : p
+                                )
+                              )
+                            }
+                            className="h-4 w-4 rounded"
+                          />
+                          Required
+                        </label>
+                        {field.type === 'select' && (
+                          <input
+                            type="text"
+                            placeholder="Options (comma-separated)"
+                            value={(field.options || []).join(', ')}
+                            onChange={(e) =>
+                              setEditedCustomFields((prev) =>
+                                prev.map((p) =>
+                                  p.id === field.id
+                                    ? {
+                                        ...p,
+                                        options: e.target.value
+                                          .split(',')
+                                          .map((o) => o.trim())
+                                          .filter(Boolean),
+                                      }
+                                    : p
+                                )
+                              )
+                            }
+                            className="flex-1 min-w-[150px] px-3 py-2 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-sm"
+                          />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setEditedCustomFields((prev) => prev.filter((p) => p.id !== field.id))
+                          }
+                          className="px-2 py-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded text-sm"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ))}
+                    {(!event.keep_live || editedCustomFields.length < 1) && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditedCustomFields((prev) => [
+                          ...prev,
+                          {
+                            id: crypto.randomUUID(),
+                            label: '',
+                            type: 'text' as const,
+                            required: false,
+                          },
+                        ])
+                      }
+                      className="text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white underline"
+                    >
+                      + Add {event.keep_live ? 'question' : 'field'}
+                    </button>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div className="flex items-center gap-2 pt-2">
                 <input
@@ -449,20 +1046,32 @@ export default function AdminEventView({
         </div>
 
         {/* RSVP List */}
-        <RsvpList rsvps={rsvps} />
+        {(event as any).rsvp_mode === 'request' ? (
+          <RsvpListWithApproval
+            rsvps={rsvps}
+            customRsvpFields={event.custom_rsvp_fields || []}
+            eventId={event.id}
+            adminSecret={adminSecret}
+            capacityLimit={event.capacity_limit}
+            confirmedCount={stats.estimatedGuests}
+          />
+        ) : (
+          <RsvpList rsvps={rsvps} customRsvpFields={event.custom_rsvp_fields || []} />
+        )}
 
-        {/* Upgrade */}
-        {event.plan_tier === 'free' && (
+        {/* Upgrade — hide when user has Organizer Hub (already has Pro+Business on all events) */}
+        {event.plan_tier === 'free' && getEffectiveTier(user ?? null, event) !== 'business' && (
           <div className="mt-8 rounded-lg border border-gray-200 dark:border-gray-800 p-6 bg-gray-50 dark:bg-gray-900/50">
             <h2 className="text-lg font-semibold mb-2">Upgrade this event</h2>
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-              Keep your event live longer or unlock Pro features. One-time payment per event.
+              Save your page, export your guest list, or make it yours with Pro features.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {!event.keep_live && (
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-col">
-                <p className="font-medium">{MVP_PRICING.keep.label}</p>
-                <p className="text-2xl font-bold">€{MVP_PRICING.keep.price}</p>
-                <p className="text-xs text-gray-500 mb-3">per event — keep live longer</p>
+                <p className="font-medium">{MVP_PRICING.plus.label}</p>
+                <p className="text-2xl font-bold">€{MVP_PRICING.plus.price}</p>
+                <p className="text-xs text-gray-500 mb-3">per event — keep it live, export, add one question</p>
                 <UpgradeButton
                   tier="keep"
                   eventId={event.id}
@@ -470,6 +1079,7 @@ export default function AdminEventView({
                   onError={setError}
                 />
               </div>
+              )}
               <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex flex-col">
                 <p className="font-medium">{MVP_PRICING.proEvent.label}</p>
                 <p className="text-2xl font-bold">€{MVP_PRICING.proEvent.price}</p>
@@ -483,8 +1093,12 @@ export default function AdminEventView({
               </div>
             </div>
             <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+              <Link href="/pricing" className="text-gray-900 dark:text-gray-100 underline">
+                See all plans
+              </Link>
+              {' · '}
               <Link href="/dashboard/billing" className="text-gray-900 dark:text-gray-100 underline">
-                Organizer Hub subscription
+                Organizer Hub
               </Link>
             </p>
           </div>

@@ -14,7 +14,7 @@ export default function HomePage() {
             <br />
             <span className="text-gray-500 dark:text-gray-400">No signup. No app. No nonsense.</span>
           </p>
-          <div className="pt-4">
+          <div className="pt-4 flex flex-wrap gap-3 justify-center">
             <Link
               href="/create"
               className="inline-flex items-center gap-2 px-6 py-3 text-gray-900 dark:text-white border-2 border-gray-900 dark:border-white rounded-lg font-semibold text-lg hover:bg-gray-900 hover:text-white dark:hover:bg-white dark:hover:text-gray-900 transition-colors"
@@ -23,6 +23,12 @@ export default function HomePage() {
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
               </svg>
+            </Link>
+            <Link
+              href="/pricing"
+              className="inline-flex items-center px-5 py-3 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white text-base font-medium transition-colors"
+            >
+              Pricing
             </Link>
           </div>
         </div>
@@ -93,7 +99,7 @@ export default function HomePage() {
             </li>
             <li className="flex flex-col gap-1">
               <span className="text-sm uppercase tracking-wide text-gray-500 dark:text-gray-400">Lightweight</span>
-              <p className="text-gray-800 dark:text-gray-200">Events stay live until 7 days after the date. We don’t keep your data longer than needed.</p>
+              <p className="text-gray-800 dark:text-gray-200">Free event pages expire 7 days after the date. Upgrade to keep them live.</p>
             </li>
           </ul>
         </div>

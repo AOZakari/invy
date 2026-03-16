@@ -12,7 +12,7 @@ import { featureRequirements } from './features';
  * Super-admin always gets business tier access
  * Event-level tier can override user-level tier
  */
-export function getEffectiveTier(user: User | null, event: Event): PlanTier {
+export function getEffectiveTier(user: User | null, event: Event | { plan_tier?: PlanTier | null }): PlanTier {
   // Super-admin bypasses all restrictions
   if (user?.role === 'superadmin') {
     return 'business';
@@ -36,9 +36,15 @@ export function getEffectiveTier(user: User | null, event: Event): PlanTier {
  */
 export function canUseFeature(
   user: User | null,
-  event: Event,
+  event: Event | { plan_tier?: PlanTier | null; keep_live?: boolean },
   feature: Feature
 ): boolean {
+  // Plus (keep_live): event stays live, CSV export, QR code, 1 custom RSVP field
+  if (event.keep_live) {
+    if (['csv_export', 'qr_code', 'custom_rsvp_fields'].includes(feature)) {
+      return true;
+    }
+  }
   const effectiveTier = getEffectiveTier(user, event);
   const requiredTiers = featureRequirements[feature];
   return requiredTiers.includes(effectiveTier);

@@ -20,9 +20,14 @@ export default function Footer({ minimal = false }: FooterProps) {
             Contact
           </a>
           {!minimal && (
-            <Link href="/create" className="hover:text-gray-900 dark:hover:text-white">
-              Create Event
-            </Link>
+            <>
+              <Link href="/create" className="hover:text-gray-900 dark:hover:text-white">
+                Create Event
+              </Link>
+              <Link href="/pricing" className="hover:text-gray-900 dark:hover:text-white">
+                Pricing
+              </Link>
+            </>
           )}
         </div>
         <p>Powered by INVY</p>

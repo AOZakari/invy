@@ -17,7 +17,12 @@ export type Feature =
   | 'share_controls'
   | 'email_reminders'
   | 'qr_code'
-  | 'white_label';
+  | 'white_label'
+  | 'page_style'
+  | 'cover_image'
+  | 'poster_image'
+  | 'request_to_attend'
+  | 'organizer_contact';
 
 /**
  * Feature requirements matrix
@@ -36,6 +41,11 @@ export const featureRequirements: Record<Feature, PlanTier[]> = {
   email_reminders: ['business'],
   qr_code: ['pro', 'business'],
   white_label: ['business'],
+  page_style: ['pro', 'business'],
+  cover_image: ['pro', 'business'],
+  poster_image: ['pro', 'business'],
+  request_to_attend: ['pro', 'business'],
+  organizer_contact: ['pro', 'business'],
 };
 
 /**

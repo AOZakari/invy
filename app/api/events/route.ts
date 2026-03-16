@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createEvent } from '@/lib/db/events';
 import { sendEventCreatedEmail } from '@/lib/emails/resend';
 import { createEventSchema } from '@/lib/validations/event';
+import { getUserFromSession } from '@/lib/auth/user';
+import { canUseFeature } from '@/lib/permissions/capabilities';
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
@@ -34,6 +36,14 @@ export async function POST(request: NextRequest) {
       rsvpDeadline = new Date(`${data.rsvp_deadline_date}T${timePart}`).toISOString();
     }
 
+    const user = await getUserFromSession();
+    const fakeEvent = { plan_tier: 'free' as const } as Parameters<typeof canUseFeature>[1];
+    const canUseCustomSlug = canUseFeature(user, fakeEvent, 'custom_slug');
+    const canUseAdvancedThemes = canUseFeature(user, fakeEvent, 'advanced_themes');
+    const slug = canUseCustomSlug && data.slug?.trim() ? data.slug.trim().toLowerCase() : undefined;
+    const theme = canUseAdvancedThemes ? data.theme : (['light', 'dark'].includes(data.theme) ? data.theme : 'light');
+
+    // New events are free tier; capacity_limit is Pro+ only
     const event = await createEvent({
       title: data.title,
       description: data.description,
@@ -42,10 +52,11 @@ export async function POST(request: NextRequest) {
       location_text: data.location_text,
       location_url: data.location_url || undefined,
       organizer_email: data.organizer_email,
-      theme: data.theme,
+      theme,
       notify_on_rsvp: data.notify_on_rsvp,
-      capacity_limit: data.capacity_limit ?? undefined,
+      capacity_limit: undefined, // Pro+ only; new events are free
       rsvp_deadline: rsvpDeadline ?? undefined,
+      slug,
     });
 
     // Generate URLs

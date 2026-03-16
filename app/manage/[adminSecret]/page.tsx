@@ -1,8 +1,10 @@
 import { notFound } from 'next/navigation';
 import { getEventByAdminSecret } from '@/lib/db/events';
 import { getRsvpsForEvent, getRsvpStatsForEvent } from '@/lib/db/rsvps';
+import { getUserFromSession } from '@/lib/auth/user';
+import { canManageEvent, canClaimEvent } from '@/lib/permissions/capabilities';
 import AdminEventView from '@/components/AdminEventView';
-import type { Event } from '@/types/database';
+import RecordManageView from '@/components/RecordManageView';
 
 interface PageProps {
   params: Promise<{ adminSecret: string }>;
@@ -23,17 +25,26 @@ export default async function ManagePage({ params }: PageProps) {
     notFound();
   }
 
-  const [rsvps, stats] = await Promise.all([
+  const [rsvps, stats, user] = await Promise.all([
     getRsvpsForEvent(event.id),
     getRsvpStatsForEvent(event.id),
+    getUserFromSession(),
   ]);
 
+  // Pass user if they own or can claim this event (Organizer Hub benefits apply)
+  const effectiveUser =
+    user && (canManageEvent(user, event) || canClaimEvent(user, event)) ? user : null;
+
   return (
-    <AdminEventView
-      event={event}
-      rsvps={rsvps}
-      stats={stats}
-      adminSecret={adminSecret}
-    />
+    <>
+      <RecordManageView eventId={event.id} adminSecret={adminSecret} />
+      <AdminEventView
+        event={event}
+        rsvps={rsvps}
+        stats={stats}
+        adminSecret={adminSecret}
+        user={effectiveUser}
+      />
+    </>
   );
 }

@@ -42,7 +42,7 @@ function LoginForm() {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to sign in';
       if (typeof msg === 'string' && (msg.includes('Email not confirmed') || msg.toLowerCase().includes('confirm'))) {
-        setError('Your email is not confirmed yet. Check your inbox for the confirmation link, or ask the site owner to turn off "Confirm email" in Supabase.');
+        setError('Your email is not confirmed yet. Check your inbox for the confirmation link.');
       } else {
         setError(msg);
       }
