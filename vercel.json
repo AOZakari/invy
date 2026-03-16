@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.invy.rsvp"
+        }
+      ],
+      "destination": "https://invy.rsvp/:path*",
+      "permanent": true
+    }
+  ]
+}
